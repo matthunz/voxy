@@ -1,18 +1,13 @@
 use bevy::{asset::LoadState, core_pipeline::bloom::BloomSettings, prelude::*};
-use block_mesh::{MergeVoxel, Voxel, VoxelVisibility};
-use voxy::{
-    Emission, Palette, PaletteSample, VoxAssetLoader, VoxFileAsset, VoxelMaterial,
-    VoxelMaterialPlugin,
-};
+use voxy::{VoxFileAsset, VoxFileAssetPlugin, VoxelMaterial, VoxelMaterialPlugin};
 
 fn main() {
     App::new()
         .add_plugins((
             DefaultPlugins.set(ImagePlugin::default_nearest()),
             VoxelMaterialPlugin,
+            VoxFileAssetPlugin,
         ))
-        .init_asset::<VoxFileAsset>()
-        .init_asset_loader::<VoxAssetLoader>()
         .add_systems(Startup, setup)
         .add_systems(Update, load_asset)
         .run();
@@ -66,63 +61,6 @@ fn load_asset(
                     ..default()
                 });
             }
-        }
-    }
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Block {
-    Air,
-    Solid,
-    Light,
-}
-
-impl Voxel for Block {
-    fn get_visibility(&self) -> VoxelVisibility {
-        if *self == Block::Air {
-            VoxelVisibility::Empty
-        } else {
-            VoxelVisibility::Opaque
-        }
-    }
-}
-
-impl MergeVoxel for Block {
-    type MergeValue = Self;
-
-    fn merge_value(&self) -> Self::MergeValue {
-        *self
-    }
-}
-
-pub struct BlockPalette;
-
-impl Palette for BlockPalette {
-    type Voxel = Block;
-
-    fn sample(
-        &self,
-        voxel: &Self::Voxel,
-        _indices: &[u32; 6],
-        _positions: &[[f32; 3]; 4],
-        _normals: &[[f32; 3]; 4],
-    ) -> PaletteSample {
-        match voxel {
-            Block::Air => PaletteSample::default(),
-            Block::Solid => PaletteSample {
-                color: Color::srgb_u8(255, 255, 0),
-                emission: Emission {
-                    alpha: 1.,
-                    intensity: 1.,
-                },
-            },
-            Block::Light => PaletteSample {
-                color: Color::srgb_u8(255, 0, 0),
-                emission: Emission {
-                    alpha: 1.,
-                    intensity: 1.,
-                },
-            },
         }
     }
 }
