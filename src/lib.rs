@@ -9,16 +9,28 @@ use bevy::{
 use block_mesh::{greedy_quads, GreedyQuadsBuffer, MergeVoxel, RIGHT_HANDED_Y_UP_CONFIG};
 use ndshape::Shape;
 
+#[derive(Default)]
+pub struct Emission {
+    pub alpha: f32,
+    pub intensity: f32,
+}
+
+#[derive(Default)]
+pub struct PaletteSample {
+    pub color: Color,
+    pub emission: Emission,
+}
+
 pub trait Palette {
     type Voxel;
 
-    fn color(
+    fn sample(
         &self,
         voxel: &Self::Voxel,
         indices: &[u32; 6],
         positions: &[[f32; 3]; 4],
         normals: &[[f32; 3]; 4],
-    ) -> Color;
+    ) -> PaletteSample;
 }
 
 pub struct Chunk<'a, P, V, S> {
@@ -55,6 +67,7 @@ where
         let mut positions = Vec::with_capacity(num_vertices);
         let mut normals = Vec::with_capacity(num_vertices);
         let mut colors = Vec::with_capacity(num_vertices);
+        let mut emissions = Vec::with_capacity(num_vertices);
 
         for (quads, face) in quad_buffer.quads.groups.into_iter().zip(faces) {
             for quad in quads {
@@ -69,13 +82,14 @@ where
 
                 let idx = self.shape.linearize(quad.minimum);
                 for _ in 0..4 {
-                    let color = self.palette.color(
+                    let sample = self.palette.sample(
                         &self.voxels[idx as usize],
                         &quad_indices,
                         &quad_positions,
                         &quad_normals,
                     );
-                    colors.push(color.to_srgba().to_u8_array().map(|x| x as f32));
+                    colors.push(sample.color.to_srgba().to_u8_array().map(|x| x as f32));
+                    emissions.push([sample.emission.alpha, sample.emission.intensity]);
                 }
             }
         }
@@ -92,7 +106,7 @@ where
             Mesh::ATTRIBUTE_NORMAL,
             VertexAttributeValues::Float32x3(normals),
         )
-        .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, vec![Vec2::ZERO; num_vertices])
+        .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, emissions)
         .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, colors)
         .with_inserted_indices(Indices::U32(indices))
     }
@@ -133,5 +147,13 @@ impl AsBindGroup for VoxelMaterial {
 impl Material for VoxelMaterial {
     fn fragment_shader() -> ShaderRef {
         "shader.wgsl".into()
+    }
+
+    fn prepass_fragment_shader() -> ShaderRef {
+        "shader.wgsl".into()
+    }
+
+    fn alpha_mode(&self) -> AlphaMode {
+        AlphaMode::Opaque
     }
 }

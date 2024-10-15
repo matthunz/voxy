@@ -1,7 +1,7 @@
-use bevy::prelude::*;
+use bevy::{core_pipeline::bloom::BloomSettings, prelude::*};
 use block_mesh::{MergeVoxel, Voxel, VoxelVisibility};
 use ndshape::{ConstShape, ConstShape3u32};
-use voxy::{Chunk, Palette, VoxelMaterial};
+use voxy::{Chunk, Emission, Palette, PaletteSample, VoxelMaterial};
 
 fn main() {
     App::new()
@@ -21,14 +21,20 @@ type PaddedChunkShape = ConstShape3u32<PADDED_CHUNK_SIZE, PADDED_CHUNK_SIZE, PAD
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<VoxelMaterial>>,
+    mut standard_materials: ResMut<Assets<StandardMaterial>>,
+    mut voxel_materials: ResMut<Assets<VoxelMaterial>>,
 ) {
+    commands.insert_resource(AmbientLight {
+        brightness: 0.,
+        ..default()
+    });
+
     let mut voxels = [Block::Air; PaddedChunkShape::SIZE as usize];
     for z in 1..10 {
         for y in 1..10 {
             for x in 1..10 {
                 let i = PaddedChunkShape::linearize([x, y, z]);
-                voxels[i as usize] = Block::Stone;
+                voxels[i as usize] = Block::Light;
             }
         }
     }
@@ -41,23 +47,35 @@ fn setup(
             max: UVec3::splat(CHUNK_SIZE + 1),
             palette: &BlockPalette,
         }),
-        material: materials.add(VoxelMaterial),
+        material: voxel_materials.add(VoxelMaterial),
         ..Default::default()
     });
 
-    commands.insert_resource(AmbientLight::default());
-
-    commands.spawn(Camera3dBundle {
-        transform: Transform::from_translation(Vec3::splat(40.)).looking_at(Vec3::ZERO, Vec3::Y),
-        ..Default::default()
+    commands.spawn(PbrBundle {
+        mesh: meshes.add(Plane3d::new(Vec3::Y, Vec2::splat(100.))),
+        material: standard_materials.add(Color::srgb(1., 1., 1.)),
+        ..default()
     });
+
+    commands.spawn((
+        Camera3dBundle {
+            camera: Camera {
+                hdr: true,
+                ..default()
+            },
+            transform: Transform::from_translation(Vec3::splat(30.))
+                .looking_at(Vec3::ZERO, Vec3::Y),
+            ..Default::default()
+        },
+        BloomSettings::NATURAL,
+    ));
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Block {
     Air,
-    Dirt,
-    Stone,
+    Solid,
+    Light,
 }
 
 impl Voxel for Block {
@@ -83,17 +101,29 @@ pub struct BlockPalette;
 impl Palette for BlockPalette {
     type Voxel = Block;
 
-    fn color(
+    fn sample(
         &self,
         voxel: &Self::Voxel,
         _indices: &[u32; 6],
         _positions: &[[f32; 3]; 4],
         _normals: &[[f32; 3]; 4],
-    ) -> Color {
+    ) -> PaletteSample {
         match voxel {
-            Block::Air => Color::NONE,
-            Block::Dirt => Color::srgb(0.5, 0.25, 0.),
-            Block::Stone => Color::srgb_u8(255, 0, 0),
+            Block::Air => PaletteSample::default(),
+            Block::Solid => PaletteSample {
+                color: Color::srgb_u8(255, 255, 0),
+                emission: Emission {
+                    alpha: 1.,
+                    intensity: 1.,
+                },
+            },
+            Block::Light => PaletteSample {
+                color: Color::srgb_u8(255, 0, 0),
+                emission: Emission {
+                    alpha: 1.,
+                    intensity: 1.,
+                },
+            },
         }
     }
 }
