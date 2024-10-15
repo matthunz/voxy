@@ -1,12 +1,15 @@
 use bevy::{asset::LoadState, core_pipeline::bloom::BloomSettings, prelude::*};
 use block_mesh::{MergeVoxel, Voxel, VoxelVisibility};
-use voxy::{Emission, Palette, PaletteSample, VoxFileAsset, VoxAssetLoader, VoxelMaterial};
+use voxy::{
+    Emission, Palette, PaletteSample, VoxAssetLoader, VoxFileAsset, VoxelMaterial,
+    VoxelMaterialPlugin,
+};
 
 fn main() {
     App::new()
         .add_plugins((
             DefaultPlugins.set(ImagePlugin::default_nearest()),
-            MaterialPlugin::<VoxelMaterial>::default(),
+            VoxelMaterialPlugin,
         ))
         .init_asset::<VoxFileAsset>()
         .init_asset_loader::<VoxAssetLoader>()
@@ -19,8 +22,8 @@ fn main() {
 struct LoadingAsset(Option<Handle<VoxFileAsset>>);
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let x: Handle<VoxFileAsset> = asset_server.load("example.vox");
-    commands.insert_resource(LoadingAsset(Some(x)));
+    let vox_file: Handle<VoxFileAsset> = asset_server.load("example.vox");
+    commands.insert_resource(LoadingAsset(Some(vox_file)));
 
     commands.insert_resource(AmbientLight {
         brightness: 0.,

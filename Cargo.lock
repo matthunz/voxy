@@ -3710,6 +3710,7 @@ dependencies = [
  "dot_vox",
  "ndshape",
  "smol",
+ "uuid",
 ]
 
 [[package]]

@@ -4,7 +4,7 @@ use bevy::{
     render::{
         mesh::{Indices, VertexAttributeValues},
         render_asset::RenderAssetUsages,
-        render_resource::{AsBindGroup, PrimitiveTopology, ShaderRef, UnpreparedBindGroup},
+        render_resource::PrimitiveTopology,
     },
     utils::ConditionalSendFuture,
 };
@@ -14,6 +14,9 @@ use block_mesh::{
 use dot_vox::DotVoxData;
 use ndshape::{RuntimeShape, Shape};
 use smol::io::AsyncReadExt;
+
+mod voxel_material;
+pub use self::voxel_material::{VoxelMaterial, VoxelMaterialPlugin};
 
 #[derive(Clone, Copy, Default)]
 pub struct Emission {
@@ -130,52 +133,6 @@ where
         .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, emissions)
         .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, colors)
         .with_inserted_indices(Indices::U32(indices))
-    }
-}
-
-#[derive(Clone, Copy, Default, Asset, TypePath)]
-pub struct VoxelMaterial;
-
-impl AsBindGroup for VoxelMaterial {
-    type Data = ();
-
-    fn unprepared_bind_group(
-        &self,
-        _layout: &bevy::render::render_resource::BindGroupLayout,
-        _render_device: &bevy::render::renderer::RenderDevice,
-        _images: &bevy::render::render_asset::RenderAssets<bevy::render::texture::GpuImage>,
-        _fallback_image: &bevy::render::texture::FallbackImage,
-    ) -> Result<
-        bevy::render::render_resource::UnpreparedBindGroup<Self::Data>,
-        bevy::render::render_resource::AsBindGroupError,
-    > {
-        Ok(UnpreparedBindGroup {
-            bindings: vec![],
-            data: (),
-        })
-    }
-
-    fn bind_group_layout_entries(
-        _render_device: &bevy::render::renderer::RenderDevice,
-    ) -> Vec<bevy::render::render_resource::BindGroupLayoutEntry>
-    where
-        Self: Sized,
-    {
-        Vec::new()
-    }
-}
-
-impl Material for VoxelMaterial {
-    fn fragment_shader() -> ShaderRef {
-        "shader.wgsl".into()
-    }
-
-    fn prepass_fragment_shader() -> ShaderRef {
-        "shader.wgsl".into()
-    }
-
-    fn alpha_mode(&self) -> AlphaMode {
-        AlphaMode::Opaque
     }
 }
 
