@@ -5,3 +5,4 @@
 *.wgsl text eol=lf
 
 *.png binary
+*.vox binary

@@ -1,21 +1,27 @@
 use bevy::{
+    asset::{io::Reader, AssetLoader, LoadContext},
     prelude::*,
     render::{
         mesh::{Indices, VertexAttributeValues},
         render_asset::RenderAssetUsages,
         render_resource::{AsBindGroup, PrimitiveTopology, ShaderRef, UnpreparedBindGroup},
     },
+    utils::ConditionalSendFuture,
 };
-use block_mesh::{greedy_quads, GreedyQuadsBuffer, MergeVoxel, RIGHT_HANDED_Y_UP_CONFIG};
-use ndshape::Shape;
+use block_mesh::{
+    greedy_quads, GreedyQuadsBuffer, MergeVoxel, Voxel, VoxelVisibility, RIGHT_HANDED_Y_UP_CONFIG,
+};
+use dot_vox::DotVoxData;
+use ndshape::{RuntimeShape, Shape};
+use smol::io::AsyncReadExt;
 
-#[derive(Default)]
+#[derive(Clone, Copy, Default)]
 pub struct Emission {
     pub alpha: f32,
     pub intensity: f32,
 }
 
-#[derive(Default)]
+#[derive(Clone, Copy, Default)]
 pub struct PaletteSample {
     pub color: Color,
     pub emission: Emission,
@@ -33,17 +39,32 @@ pub trait Palette {
     ) -> PaletteSample;
 }
 
-pub struct Chunk<'a, P, V, S> {
-    pub palette: &'a P,
-    pub voxels: &'a [V],
+impl<P: Palette> Palette for &P {
+    type Voxel = P::Voxel;
+
+    fn sample(
+        &self,
+        voxel: &Self::Voxel,
+        indices: &[u32; 6],
+        positions: &[[f32; 3]; 4],
+        normals: &[[f32; 3]; 4],
+    ) -> PaletteSample {
+        (**self).sample(voxel, indices, positions, normals)
+    }
+}
+
+pub struct Chunk<P, V, S> {
+    pub palette: P,
+    pub voxels: V,
     pub shape: S,
     pub min: UVec3,
     pub max: UVec3,
 }
 
-impl<P, V, S> MeshBuilder for Chunk<'_, P, V, S>
+impl<P, V, VS, S> MeshBuilder for Chunk<P, VS, S>
 where
     P: Palette<Voxel = V>,
+    VS: AsRef<[V]>,
     V: MergeVoxel,
     S: Shape<3, Coord = u32>,
 {
@@ -52,7 +73,7 @@ where
         let mut quad_buffer = GreedyQuadsBuffer::new(self.shape.size() as _);
 
         greedy_quads(
-            self.voxels,
+            self.voxels.as_ref(),
             &self.shape,
             self.min.into(),
             self.max.into(),
@@ -83,7 +104,7 @@ where
                 let idx = self.shape.linearize(quad.minimum);
                 for _ in 0..4 {
                     let sample = self.palette.sample(
-                        &self.voxels[idx as usize],
+                        &self.voxels.as_ref()[idx as usize],
                         &quad_indices,
                         &quad_positions,
                         &quad_normals,
@@ -155,5 +176,126 @@ impl Material for VoxelMaterial {
 
     fn alpha_mode(&self) -> AlphaMode {
         AlphaMode::Opaque
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+pub struct AssetVoxel {
+    idx: u8,
+}
+
+impl Voxel for AssetVoxel {
+    fn get_visibility(&self) -> VoxelVisibility {
+        if self.idx == 0 {
+            VoxelVisibility::Empty
+        } else {
+            VoxelVisibility::Opaque
+        }
+    }
+}
+
+impl MergeVoxel for AssetVoxel {
+    type MergeValue = u8;
+
+    fn merge_value(&self) -> Self::MergeValue {
+        self.idx
+    }
+}
+
+pub struct VoxFilePalette {
+    palette: Vec<PaletteSample>,
+}
+
+impl Palette for VoxFilePalette {
+    type Voxel = AssetVoxel;
+
+    fn sample(
+        &self,
+        voxel: &Self::Voxel,
+        _indices: &[u32; 6],
+        _positions: &[[f32; 3]; 4],
+        _normals: &[[f32; 3]; 4],
+    ) -> PaletteSample {
+        self.palette[voxel.idx as usize]
+    }
+}
+
+#[derive(Debug, Asset, TypePath)]
+pub struct VoxFileAsset {
+    pub file: DotVoxData,
+}
+
+impl VoxFileAsset {
+    pub fn palette(&self) -> VoxFilePalette {
+        VoxFilePalette {
+            palette: self
+                .file
+                .palette
+                .iter()
+                .enumerate()
+                .map(|(idx, color)| PaletteSample {
+                    color: Color::srgb_u8(color.r, color.g, color.b),
+                    emission: Emission {
+                        alpha: self.file.materials[idx]
+                            .properties
+                            .get("_emit")
+                            .and_then(|s| s.parse().ok())
+                            .unwrap_or_default(),
+                        intensity: 1.,
+                    },
+                })
+                .collect::<Vec<_>>(),
+        }
+    }
+
+    pub fn chunks<'a>(
+        &'a self,
+        palette: &'a VoxFilePalette,
+    ) -> impl Iterator<Item = Chunk<&'a VoxFilePalette, Vec<AssetVoxel>, RuntimeShape<u32, 3>>> + 'a
+    {
+        self.file.models.iter().map(move |model| {
+            let shape =
+                RuntimeShape::<u32, 3>::new([model.size.x + 2, model.size.y + 2, model.size.z + 2]);
+
+            let mut voxels = vec![AssetVoxel::default(); shape.size() as usize];
+            for voxel in &model.voxels {
+                voxels[shape.linearize([voxel.x as u32 + 1, voxel.z as u32 + 1, voxel.y as u32 + 1])
+                    as usize] = AssetVoxel { idx: voxel.i };
+            }
+
+            Chunk {
+                palette,
+                voxels,
+                shape,
+                min: UVec3::ZERO,
+                max: UVec3::new(model.size.x, model.size.y, model.size.z),
+            }
+        })
+    }
+}
+
+#[derive(Default)]
+pub struct VoxAssetLoader;
+
+impl AssetLoader for VoxAssetLoader {
+    type Asset = VoxFileAsset;
+
+    type Settings = ();
+
+    type Error = Box<dyn std::error::Error + Send + Sync>;
+
+    fn load<'a>(
+        &'a self,
+        reader: &'a mut Reader,
+        _settings: &'a Self::Settings,
+        _load_context: &'a mut LoadContext,
+    ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
+        async move {
+            let mut buf = Vec::new();
+            reader.read_to_end(&mut buf).await?;
+
+            let file = dot_vox::load_bytes(&buf).unwrap();
+            Ok(VoxFileAsset { file })
+        }
     }
 }

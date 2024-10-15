@@ -1,7 +1,6 @@
-use bevy::{core_pipeline::bloom::BloomSettings, prelude::*};
+use bevy::{asset::LoadState, core_pipeline::bloom::BloomSettings, prelude::*};
 use block_mesh::{MergeVoxel, Voxel, VoxelVisibility};
-use ndshape::{ConstShape, ConstShape3u32};
-use voxy::{Chunk, Emission, Palette, PaletteSample, VoxelMaterial};
+use voxy::{Emission, Palette, PaletteSample, VoxFileAsset, VoxAssetLoader, VoxelMaterial};
 
 fn main() {
     App::new()
@@ -9,51 +8,22 @@ fn main() {
             DefaultPlugins.set(ImagePlugin::default_nearest()),
             MaterialPlugin::<VoxelMaterial>::default(),
         ))
+        .init_asset::<VoxFileAsset>()
+        .init_asset_loader::<VoxAssetLoader>()
         .add_systems(Startup, setup)
+        .add_systems(Update, load_asset)
         .run();
 }
 
-const CHUNK_SIZE: u32 = 16;
-const PADDED_CHUNK_SIZE: u32 = CHUNK_SIZE + 2;
+#[derive(Default, Resource)]
+struct LoadingAsset(Option<Handle<VoxFileAsset>>);
 
-type PaddedChunkShape = ConstShape3u32<PADDED_CHUNK_SIZE, PADDED_CHUNK_SIZE, PADDED_CHUNK_SIZE>;
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let x: Handle<VoxFileAsset> = asset_server.load("example.vox");
+    commands.insert_resource(LoadingAsset(Some(x)));
 
-fn setup(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut standard_materials: ResMut<Assets<StandardMaterial>>,
-    mut voxel_materials: ResMut<Assets<VoxelMaterial>>,
-) {
     commands.insert_resource(AmbientLight {
         brightness: 0.,
-        ..default()
-    });
-
-    let mut voxels = [Block::Air; PaddedChunkShape::SIZE as usize];
-    for z in 1..10 {
-        for y in 1..10 {
-            for x in 1..10 {
-                let i = PaddedChunkShape::linearize([x, y, z]);
-                voxels[i as usize] = Block::Light;
-            }
-        }
-    }
-
-    commands.spawn(MaterialMeshBundle {
-        mesh: meshes.add(Chunk {
-            voxels: &voxels,
-            shape: PaddedChunkShape {},
-            min: UVec3::ZERO,
-            max: UVec3::splat(CHUNK_SIZE + 1),
-            palette: &BlockPalette,
-        }),
-        material: voxel_materials.add(VoxelMaterial),
-        ..Default::default()
-    });
-
-    commands.spawn(PbrBundle {
-        mesh: meshes.add(Plane3d::new(Vec3::Y, Vec2::splat(100.))),
-        material: standard_materials.add(Color::srgb(1., 1., 1.)),
         ..default()
     });
 
@@ -63,12 +33,38 @@ fn setup(
                 hdr: true,
                 ..default()
             },
-            transform: Transform::from_translation(Vec3::splat(30.))
+            transform: Transform::from_translation(Vec3::splat(100.))
                 .looking_at(Vec3::ZERO, Vec3::Y),
             ..Default::default()
         },
         BloomSettings::NATURAL,
     ));
+}
+
+fn load_asset(
+    mut commands: Commands,
+    mut loading_asset: ResMut<LoadingAsset>,
+    asset_server: Res<AssetServer>,
+    vox_assets: Res<Assets<VoxFileAsset>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut voxel_materials: ResMut<Assets<VoxelMaterial>>,
+) {
+    if let Some(handle) = loading_asset.0.clone() {
+        if asset_server.load_state(&handle) == LoadState::Loaded {
+            loading_asset.0 = None;
+
+            let vox = vox_assets.get(&handle).unwrap();
+            let palette = vox.palette();
+
+            for chunk in vox.chunks(&palette) {
+                commands.spawn(MaterialMeshBundle {
+                    material: voxel_materials.add(VoxelMaterial),
+                    mesh: meshes.add(chunk),
+                    ..default()
+                });
+            }
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
