@@ -1,13 +1,12 @@
 # Voxy
 
-A voxel engine for [Bevy](https://github.com/bevyengine/bevy).
-
 [![License](https://img.shields.io/badge/license-MIT%2FApache-blue.svg)](https://github.com/matthunz/voxy)
 [![Crates.io](https://img.shields.io/crates/v/voxy.svg)](https://crates.io/crates/voxy)
 [![Downloads](https://img.shields.io/crates/d/voxy.svg)](https://crates.io/crates/voxy)
 [![Docs](https://docs.rs/voxy/badge.svg)](https://docs.rs/voxy/latest/voxy/)
 [![CI](https://github.com/matthunz/voxy/workflows/CI/badge.svg)](https://github.com/matthunz/voxy/actions)
 
+A voxel engine for [Bevy](https://github.com/bevyengine/bevy).
 
 Features:
  - Uses the [block_mesh](https://docs.rs/block-mesh/latest/block_mesh/) crate for high-performance chunk meshing
@@ -26,8 +25,7 @@ fn main() {
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     // Load and spawn `example.vox`.
-    let vox_file: Handle<VoxFileAsset> = asset_server.load("example.vox");
-    commands.spawn(vox_file);
+    commands.spawn(asset_server.load::<VoxFileAsset>("example.vox"));
 
     // Setup camera.
     commands.spawn((

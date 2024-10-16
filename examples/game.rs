@@ -9,8 +9,7 @@ fn main() {
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let vox_file: Handle<VoxFileAsset> = asset_server.load("example.vox");
-    commands.spawn(vox_file);
+    commands.spawn(asset_server.load::<VoxFileAsset>("example.vox"));
 
     commands.spawn((
         Camera3dBundle {
