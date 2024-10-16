@@ -20,11 +20,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let vox_file: Handle<VoxFileAsset> = asset_server.load("example.vox");
     commands.insert_resource(LoadingAsset(Some(vox_file)));
 
-    commands.insert_resource(AmbientLight {
-        brightness: 0.,
-        ..default()
-    });
-
     commands.spawn((
         Camera3dBundle {
             camera: Camera {

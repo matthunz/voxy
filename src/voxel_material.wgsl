@@ -22,9 +22,9 @@ fn fragment(@builtin(front_facing) is_front: bool, mesh: VertexOutput) -> Fragme
 
     pbr_input.material.base_color = mesh.color;
     pbr_input.material.emissive = vec4(
-        mesh.color.x * mesh.uv.x,
-        mesh.color.y * mesh.uv.x,
-        mesh.color.z * mesh.uv.x,
+        mesh.color.x * mesh.uv.x * 1000.,
+        mesh.color.y * mesh.uv.x * 1000.,
+        mesh.color.z * mesh.uv.x * 1000.,
         mesh.uv.y
     );
 

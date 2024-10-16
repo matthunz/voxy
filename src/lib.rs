@@ -111,7 +111,7 @@ where
                         &quad_positions,
                         &quad_normals,
                     );
-                    colors.push(sample.color.to_srgba().to_u8_array().map(|x| x as f32));
+                    colors.push(sample.color.to_linear().to_f32_array());
                     emissions.push([sample.emission.alpha, sample.emission.intensity]);
                 }
             }
