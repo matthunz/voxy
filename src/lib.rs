@@ -11,7 +11,7 @@ use ndshape::Shape;
 
 mod asset;
 pub use self::asset::{
-    AssetVoxel, VoxAssetLoader, VoxFileAsset, VoxFileAssetPlugin, VoxFilePalette,
+    AssetVoxel, VoxAssetLoader, VoxFileAsset, VoxFileAssetPlugin, VoxFileModels, VoxFilePalette,
 };
 
 mod voxel_material;
@@ -72,7 +72,7 @@ where
 {
     fn build(&self) -> Mesh {
         let faces = RIGHT_HANDED_Y_UP_CONFIG.faces;
-        let mut quad_buffer = GreedyQuadsBuffer::new(self.shape.size() as _);
+        let mut quad_buffer = GreedyQuadsBuffer::new(self.voxels.as_ref().len());
 
         greedy_quads(
             self.voxels.as_ref(),
