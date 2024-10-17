@@ -6,7 +6,7 @@ use bevy::{
     utils::ConditionalSendFuture,
 };
 use block_mesh::{MergeVoxel, Voxel, VoxelVisibility};
-use dot_vox::DotVoxData;
+use dot_vox::{DotVoxData, SceneNode};
 use ndshape::{RuntimeShape, Shape};
 use smol::io::AsyncReadExt;
 
@@ -92,9 +92,43 @@ impl VoxFileAsset {
     pub fn chunks<'a>(
         &'a self,
         palette: &'a VoxFilePalette,
-    ) -> impl Iterator<Item = Chunk<&'a VoxFilePalette, Vec<AssetVoxel>, RuntimeShape<u32, 3>>> + 'a
-    {
-        self.file.models.iter().map(move |model| {
+    ) -> impl Iterator<
+        Item = (
+            Chunk<&'a VoxFilePalette, Vec<AssetVoxel>, RuntimeShape<u32, 3>>,
+            Transform,
+        ),
+    > + 'a {
+        let mut next = vec![&self.file.scenes[0]];
+        let mut transform = Transform::default();
+        let mut models = Vec::new();
+        while let Some(scene) = next.pop() {
+            match scene {
+                SceneNode::Transform { frames, child, .. } => {
+                    let t = frames[0]
+                        .position()
+                        .map(|t| Vec3::new(t.x as _, t.y as _, t.z as _))
+                        .unwrap_or_default();
+                    transform.translation += t;
+
+                    next.push(&self.file.scenes[*child as usize]);
+                }
+                SceneNode::Shape {
+                    models: shape_models,
+                    ..
+                } => {
+                    for model in shape_models {
+                        models.push((&self.file.models[model.model_id as usize], transform));
+                    }
+                }
+                SceneNode::Group { children, .. } => {
+                    for child in children {
+                        next.push(&self.file.scenes[*child as usize]);
+                    }
+                }
+            }
+        }
+
+        models.into_iter().map(move |(model, transform)| {
             let shape =
                 RuntimeShape::<u32, 3>::new([model.size.x + 2, model.size.y + 2, model.size.z + 2]);
 
@@ -104,13 +138,16 @@ impl VoxFileAsset {
                     as usize] = AssetVoxel { idx: voxel.i };
             }
 
-            Chunk {
-                palette,
-                voxels,
-                shape,
-                min: UVec3::ZERO,
-                max: UVec3::new(model.size.x, model.size.y, model.size.z),
-            }
+            (
+                Chunk {
+                    palette,
+                    voxels,
+                    shape,
+                    min: UVec3::ZERO,
+                    max: UVec3::new(model.size.x, model.size.y, model.size.z),
+                },
+                transform,
+            )
         })
     }
 
@@ -122,33 +159,38 @@ impl VoxFileAsset {
     ) {
         let palette = self.palette();
 
-        for chunk in self.chunks(&palette) {
-            entity_commands.with_children(|parent| {
-                for (idx, voxel) in chunk.voxels.iter().enumerate() {
-                    let sample = chunk.palette.samples[voxel.idx as usize];
+        entity_commands.with_children(|parent| {
+            for (chunk, transform) in self.chunks(&palette) {
+                parent
+                    .spawn_empty()
+                    .with_children(|parent| {
+                        for (idx, voxel) in chunk.voxels.iter().enumerate() {
+                            let sample = chunk.palette.samples[voxel.idx as usize];
 
-                    let [x, y, z] = chunk.shape.delinearize(idx as _).map(|n| n as f32);
+                            let [x, y, z] = chunk.shape.delinearize(idx as _).map(|n| n as f32);
 
-                    if sample.emission.alpha > 0. {
-                        parent.spawn(PointLightBundle {
-                            point_light: PointLight {
-                                intensity: sample.emission.alpha * 100_000.,
-                                range: 10.,
-                                ..default()
-                            },
-                            transform: Transform::from_xyz(x, y, z),
-                            ..default()
-                        });
-                    }
-                }
-            });
-
-            entity_commands.insert(MaterialMeshBundle {
-                material: materials.add(VoxelMaterial),
-                mesh: meshes.add(chunk),
-                ..default()
-            });
-        }
+                            if sample.emission.alpha > 0. {
+                                parent.spawn(PointLightBundle {
+                                    point_light: PointLight {
+                                        intensity: sample.emission.alpha * 100_000.,
+                                        range: 10.,
+                                        ..default()
+                                    },
+                                    transform: Transform::from_translation(
+                                        Vec3::new(x, y, z) + transform.translation,
+                                    ),
+                                    ..default()
+                                });
+                            }
+                        }
+                    })
+                    .insert(MaterialMeshBundle {
+                        material: materials.add(VoxelMaterial),
+                        mesh: meshes.add(chunk),
+                        ..default()
+                    });
+            }
+        });
     }
 }
 
