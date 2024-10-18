@@ -11,17 +11,17 @@ use ndshape::Shape;
 use std::marker::PhantomData;
 
 pub mod prelude {
-    pub use crate::voxel_material::VoxelMaterial;
     pub use crate::scene::{VoxelScene, VoxelSceneModels};
+    pub use crate::voxel_material::VoxelMaterial;
 }
 
 mod asset;
 pub use self::asset::{
-    AssetVoxel, VoxAssetLoader, VoxFileAsset, VoxFileAssetPlugin,  VoxFilePalette,
+    AssetVoxel, VoxAssetLoader, VoxFileAsset, VoxFileAssetPlugin, 
 };
 
 pub mod scene;
-pub use self::scene::{VoxelScene, ScenePlugin, VoxelLight, VoxelSceneModels};
+pub use self::scene::{ScenePlugin, VoxelLight, VoxelScene, VoxelSceneModels};
 
 mod voxel_material;
 pub use self::voxel_material::{VoxelMaterial, VoxelMaterialPlugin};
@@ -34,18 +34,14 @@ impl Plugin for DefaultPlugins {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default)]
-pub struct Emission {
-    pub alpha: f32,
-    pub intensity: f32,
-}
+pub const ATTRIBUTE_COLOR_INDEX: MeshVertexAttribute =
+    MeshVertexAttribute::new("ColorIndex", 988940917, VertexFormat::Uint32);
 
-#[derive(Clone, Copy, Debug, Default)]
-pub struct PaletteSample {
-    pub color: Color,
-    pub emission: Emission,
-}
-
+/// A chunk of voxels that can be built into a mesh.
+/// 
+/// This struct produces a [`Mesh`] with standard attributes so it can be rendered with a [`VoxelMaterial`] or extended with custom shaders.
+/// 
+/// [`ATTRIBUTE_COLOR_INDEX`] is inserted into the mesh for each quad, representing the voxel index.
 pub struct Chunk<V, VS, S> {
     pub voxels: VS,
     pub shape: S,
@@ -118,6 +114,3 @@ where
         .with_inserted_indices(Indices::U32(indices))
     }
 }
-
-const ATTRIBUTE_COLOR_INDEX: MeshVertexAttribute =
-    MeshVertexAttribute::new("ColorIndex", 988940917, VertexFormat::Uint32);

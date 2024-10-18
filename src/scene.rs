@@ -1,4 +1,4 @@
-use crate::{PaletteSample, VoxAssetLoader, VoxelMaterial};
+use crate::{VoxAssetLoader, VoxelMaterial};
 use bevy::{
     asset::{io::Reader, AssetLoader, LoadContext, LoadState},
     ecs::system::EntityCommands,
@@ -42,34 +42,17 @@ pub struct LitMesh {
 #[derive(Debug, Asset, TypePath)]
 pub struct VoxelScene {
     pub meshes: Vec<LitMesh>,
-    pub palette: Vec<PaletteSample>,
+    pub material: VoxelMaterial,
 }
 
 impl VoxelScene {
     fn spawn(
         &self,
         mut entity_commands: EntityCommands,
+        material: Handle<VoxelMaterial>,
         meshes: &Vec<Handle<Mesh>>,
-        materials: &mut Assets<VoxelMaterial>,
     ) {
         let mut entities = HashMap::new();
-
-        let material = materials.add(VoxelMaterial {
-            colors: self
-                .palette
-                .iter()
-                .map(|s| s.color.to_linear().to_vec3())
-                .collect::<Vec<_>>()
-                .try_into()
-                .unwrap(),
-            emissions: self
-                .palette
-                .iter()
-                .map(|s| Vec3::new(s.emission.alpha, s.emission.intensity, 0.))
-                .collect::<Vec<_>>()
-                .try_into()
-                .unwrap(),
-        });
 
         entity_commands.with_children(|parent| {
             for (idx, lit_mesh) in self.meshes.iter().enumerate() {
@@ -123,13 +106,15 @@ impl AssetLoader for SceneLoader {
         load_context: &'a mut LoadContext,
     ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
         async move {
-            let x = VoxAssetLoader.load(reader, settings, load_context).await?;
+            let asset = VoxAssetLoader.load(reader, settings, load_context).await?;
 
-            let palette = Arc::new(x.palette());
-            let chunks: Vec<_> = x.chunks().collect();
+            let material = asset.material();
+
+            let emissions = Arc::new(material.emissions.clone());
+            let chunks: Vec<_> = asset.chunks().collect();
 
             let meshes = future::join_all(chunks.into_iter().map(|(chunk, transform, name)| {
-                let palette = palette.clone();
+                let emissions = emissions.clone();
 
                 smol::unblock(move || {
                     let mesh = chunk.build();
@@ -137,14 +122,14 @@ impl AssetLoader for SceneLoader {
                     // TODO check positions
                     let mut lights = Vec::new();
                     for (idx, voxel) in chunk.voxels.iter().enumerate() {
-                        let sample = palette.samples[voxel.idx as usize];
+                        let emissive = emissions[voxel.idx as usize];
 
                         let [x, y, z] = chunk.shape.delinearize(idx as _).map(|n| n as f32);
 
-                        if sample.emission.alpha > 0. {
+                        if emissive.x > 0. {
                             lights.push(VoxelLight {
                                 origin: Vec3::new(x, y, z),
-                                intensity: sample.emission.intensity,
+                                intensity: emissive.x,
                             });
                         }
                     }
@@ -159,17 +144,14 @@ impl AssetLoader for SceneLoader {
             }))
             .await;
 
-            Ok(VoxelScene {
-                meshes,
-                palette: palette.samples.clone(),
-            })
+            Ok(VoxelScene { meshes, material })
         }
     }
 }
 
 #[derive(Default, Resource)]
 pub struct LoadedAssets {
-    assets: HashMap<AssetId<VoxelScene>, Vec<Handle<Mesh>>>,
+    assets: HashMap<AssetId<VoxelScene>, (Handle<VoxelMaterial>, Vec<Handle<Mesh>>)>,
 }
 
 #[derive(Component)]
@@ -191,20 +173,20 @@ pub fn load_scenes(
             if !loaded_assets.assets.contains_key(&handle.id()) {
                 loaded_assets.assets.insert(
                     handle.id(),
-                    vox.meshes
-                        .iter()
-                        .map(|lit_mesh| meshes.add(lit_mesh.mesh.clone()))
-                        .collect(),
+                    (
+                        materials.add(vox.material.clone()),
+                        vox.meshes
+                            .iter()
+                            .map(|lit_mesh| meshes.add(lit_mesh.mesh.clone()))
+                            .collect(),
+                    ),
                 );
             }
 
             commands.entity(entity).insert(Loaded);
 
-            vox.spawn(
-                commands.entity(entity),
-                &loaded_assets.assets.get(&handle.id()).unwrap(),
-                &mut materials,
-            );
+            let (material, meshes) = &loaded_assets.assets.get(&handle.id()).unwrap();
+            vox.spawn(commands.entity(entity), material.clone(), meshes);
         }
     }
 }
@@ -232,18 +214,19 @@ pub fn handle_scene_events(
 
                         loaded_assets.assets.insert(
                             handle.id(),
-                            scene
-                                .meshes
-                                .iter()
-                                .map(|lit_mesh| meshes.add(lit_mesh.mesh.clone()))
-                                .collect(),
+                            (
+                                materials.add(scene.material.clone()),
+                                scene
+                                    .meshes
+                                    .iter()
+                                    .map(|lit_mesh| meshes.add(lit_mesh.mesh.clone()))
+                                    .collect(),
+                            ),
                         );
 
-                        scene.spawn(
-                            commands.entity(entity),
-                            &loaded_assets.assets.get(&handle.id()).unwrap(),
-                            &mut materials,
-                        );
+                        let (material, meshes) = loaded_assets.assets.get(&handle.id()).unwrap();
+
+                        scene.spawn(commands.entity(entity), material.clone(), meshes);
                     }
                 }
             }

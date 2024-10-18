@@ -11,7 +11,7 @@ use bevy::{
 };
 use uuid::Uuid;
 
-const VOXEL_MATERIAL_SHADER_HANDLE: Handle<Shader> = Handle::Weak(AssetId::Uuid {
+pub const VOXEL_MATERIAL_SHADER_HANDLE: Handle<Shader> = Handle::Weak(AssetId::Uuid {
     uuid: Uuid::from_bytes([
         152, 99, 215, 179, 144, 131, 70, 105, 133, 171, 80, 205, 43, 117, 234, 20,
     ]),
@@ -31,7 +31,7 @@ impl Plugin for VoxelMaterialPlugin {
     }
 }
 
-#[derive(Clone, AsBindGroup, Asset, TypePath)]
+#[derive(Clone, Debug, AsBindGroup, Asset, TypePath)]
 pub struct VoxelMaterial {
     #[uniform(0)]
     pub colors: [Vec3; 256],

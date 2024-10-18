@@ -1,4 +1,4 @@
-use crate::{Chunk, Emission, PaletteSample};
+use crate::{Chunk, VoxelMaterial};
 use bevy::{
     asset::{io::Reader, AssetLoader, LoadContext},
     prelude::*,
@@ -48,35 +48,44 @@ impl MergeVoxel for AssetVoxel {
     }
 }
 
-pub struct VoxFilePalette {
-    pub samples: Vec<PaletteSample>,
-}
-
 #[derive(Debug, Asset, TypePath)]
 pub struct VoxFileAsset {
     pub file: DotVoxData,
 }
 
 impl VoxFileAsset {
-    pub fn palette(&self) -> VoxFilePalette {
-        VoxFilePalette {
-            samples: self
+    pub fn material(&self) -> VoxelMaterial {
+        VoxelMaterial {
+            colors: self
                 .file
                 .palette
                 .iter()
-                .enumerate()
-                .map(|(idx, color)| PaletteSample {
-                    color: Color::srgb_u8(color.r, color.g, color.b),
-                    emission: Emission {
-                        alpha: self.file.materials[idx]
+                .map(|color| {
+                    Color::srgb_u8(color.r, color.g, color.b)
+                        .to_linear()
+                        .to_vec3()
+                })
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap(),
+            emissions: self
+                .file
+                .materials
+                .iter()
+                .map(|material| {
+                    Vec3::new(
+                        material
                             .properties
                             .get("_emit")
                             .and_then(|s| s.parse().ok())
                             .unwrap_or_default(),
-                        intensity: 1.,
-                    },
+                        1.,
+                        1.,
+                    )
                 })
-                .collect::<Vec<_>>(),
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap(),
         }
     }
 
@@ -121,6 +130,7 @@ impl VoxFileAsset {
             )
         })
     }
+
 }
 
 fn visit_node<'a>(
