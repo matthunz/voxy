@@ -113,18 +113,18 @@ impl AssetLoader for SceneLoader {
             let emissions = Arc::new(material.emissions);
             let chunks: Vec<_> = asset.chunks().collect();
 
-            let meshes = future::join_all(chunks.into_iter().map(|(chunk, transform, name)| {
+            let meshes = future::join_all(chunks.into_iter().map(|asset_chunk| {
                 let emissions = emissions.clone();
 
                 smol::unblock(move || {
-                    let mesh = chunk.build();
+                    let mesh = asset_chunk.chunk.build();
 
                     // TODO check positions
                     let mut lights = Vec::new();
-                    for (idx, voxel) in chunk.voxels.iter().enumerate() {
+                    for (idx, voxel) in asset_chunk.chunk.voxels.iter().enumerate() {
                         let emissive = emissions[voxel.idx as usize];
 
-                        let [x, y, z] = chunk.shape.delinearize(idx as _).map(|n| n as f32);
+                        let [x, y, z] = asset_chunk.chunk.shape.delinearize(idx as _).map(|n| n as f32);
 
                         if emissive.x > 0. {
                             lights.push(VoxelLight {
@@ -137,8 +137,8 @@ impl AssetLoader for SceneLoader {
                     LitMesh {
                         mesh,
                         lights,
-                        name,
-                        transform,
+                        name: asset_chunk.name,
+                        transform: asset_chunk.transform,
                     }
                 })
             }))

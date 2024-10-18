@@ -47,6 +47,12 @@ impl MergeVoxel for AssetVoxel {
     }
 }
 
+pub struct AssetChunk {
+    pub chunk: Chunk<AssetVoxel, Vec<AssetVoxel>, RuntimeShape<u32, 3>>,
+    pub transform: Transform,
+    pub name: Option<String>,
+}
+
 #[derive(Debug, Asset, TypePath)]
 pub struct VoxFileAsset {
     pub file: DotVoxData,
@@ -88,15 +94,7 @@ impl VoxFileAsset {
         }
     }
 
-    pub fn chunks<V>(
-        &self,
-    ) -> impl Iterator<
-        Item = (
-            Chunk<V, Vec<AssetVoxel>, RuntimeShape<u32, 3>>,
-            Transform,
-            Option<String>,
-        ),
-    > + '_ {
+    pub fn chunks(&self) -> impl Iterator<Item = AssetChunk> + '_ {
         let mut models = Vec::new();
         visit_node(
             &self.file,
@@ -116,8 +114,8 @@ impl VoxFileAsset {
                     as usize] = AssetVoxel { idx: voxel.i + 1 };
             }
 
-            (
-                Chunk::new(
+            AssetChunk {
+                chunk: Chunk::new(
                     voxels,
                     shape,
                     UVec3::ZERO,
@@ -125,7 +123,7 @@ impl VoxFileAsset {
                 ),
                 transform,
                 name,
-            )
+            }
         })
     }
 }

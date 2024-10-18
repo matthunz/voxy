@@ -16,7 +16,7 @@ pub mod prelude {
 }
 
 mod asset;
-pub use self::asset::{AssetVoxel, VoxAssetLoader, VoxFileAsset, VoxFileAssetPlugin};
+pub use self::asset::{AssetChunk, AssetVoxel, VoxAssetLoader, VoxFileAsset, VoxFileAssetPlugin};
 
 pub mod scene;
 pub use self::scene::{ScenePlugin, VoxelLight, VoxelScene, VoxelSceneModels};
