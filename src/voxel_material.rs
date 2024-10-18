@@ -1,6 +1,13 @@
+use crate::ATTRIBUTE_COLOR_INDEX;
 use bevy::{
+    pbr::{MaterialPipeline, MaterialPipelineKey},
     prelude::*,
-    render::render_resource::{AsBindGroup, ShaderRef, UnpreparedBindGroup},
+    render::{
+        mesh::MeshVertexBufferLayoutRef,
+        render_resource::{
+            AsBindGroup, RenderPipelineDescriptor, ShaderRef, SpecializedMeshPipelineError,
+        },
+    },
 };
 use uuid::Uuid;
 
@@ -24,39 +31,19 @@ impl Plugin for VoxelMaterialPlugin {
     }
 }
 
-#[derive(Clone, Copy, Default, Asset, TypePath)]
-pub struct VoxelMaterial;
-
-impl AsBindGroup for VoxelMaterial {
-    type Data = ();
-
-    fn unprepared_bind_group(
-        &self,
-        _layout: &bevy::render::render_resource::BindGroupLayout,
-        _render_device: &bevy::render::renderer::RenderDevice,
-        _images: &bevy::render::render_asset::RenderAssets<bevy::render::texture::GpuImage>,
-        _fallback_image: &bevy::render::texture::FallbackImage,
-    ) -> Result<
-        bevy::render::render_resource::UnpreparedBindGroup<Self::Data>,
-        bevy::render::render_resource::AsBindGroupError,
-    > {
-        Ok(UnpreparedBindGroup {
-            bindings: vec![],
-            data: (),
-        })
-    }
-
-    fn bind_group_layout_entries(
-        _render_device: &bevy::render::renderer::RenderDevice,
-    ) -> Vec<bevy::render::render_resource::BindGroupLayoutEntry>
-    where
-        Self: Sized,
-    {
-        Vec::new()
-    }
+#[derive(Clone, AsBindGroup, Asset, TypePath)]
+pub struct VoxelMaterial {
+    #[uniform(0)]
+    pub colors: [Vec3; 256],
+    #[uniform(1)]
+    pub emissions: [Vec3; 256],
 }
 
 impl Material for VoxelMaterial {
+    fn vertex_shader() -> ShaderRef {
+        ShaderRef::Handle(VOXEL_MATERIAL_SHADER_HANDLE)
+    }
+
     fn fragment_shader() -> ShaderRef {
         ShaderRef::Handle(VOXEL_MATERIAL_SHADER_HANDLE)
     }
@@ -67,5 +54,22 @@ impl Material for VoxelMaterial {
 
     fn alpha_mode(&self) -> AlphaMode {
         AlphaMode::Opaque
+    }
+
+    fn specialize(
+        _pipeline: &MaterialPipeline<Self>,
+        descriptor: &mut RenderPipelineDescriptor,
+        layout: &MeshVertexBufferLayoutRef,
+        _key: MaterialPipelineKey<Self>,
+    ) -> Result<(), SpecializedMeshPipelineError> {
+        let vertex_layout = layout.0.get_layout(&[
+            Mesh::ATTRIBUTE_POSITION.at_shader_location(0),
+            Mesh::ATTRIBUTE_NORMAL.at_shader_location(1),
+            ATTRIBUTE_COLOR_INDEX.at_shader_location(2),
+        ])?;
+
+        descriptor.vertex.buffers = vec![vertex_layout];
+
+        Ok(())
     }
 }

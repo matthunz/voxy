@@ -1,7 +1,4 @@
-use crate::{
-    VoxAssetLoader, VoxFileModels,
-    VoxelMaterial,
-};
+use crate::{PaletteSample, VoxAssetLoader, VoxFileModels, VoxelMaterial};
 use bevy::{
     asset::{io::Reader, AssetLoader, LoadContext, LoadState},
     ecs::system::EntityCommands,
@@ -39,6 +36,7 @@ pub struct LitMesh {
 #[derive(Debug, Asset, TypePath)]
 pub struct VoxFileMeshAsset {
     meshes: Vec<LitMesh>,
+    palette: Vec<PaletteSample>,
 }
 
 impl VoxFileMeshAsset {
@@ -68,7 +66,22 @@ impl VoxFileMeshAsset {
                         }
                     })
                     .insert(MaterialMeshBundle {
-                        material: materials.add(VoxelMaterial),
+                        material: materials.add(VoxelMaterial {
+                            colors: self
+                                .palette
+                                .iter()
+                                .map(|s| s.color.to_linear().to_vec3())
+                                .collect::<Vec<_>>()
+                                .try_into()
+                                .unwrap(),
+                            emissions: self
+                                .palette
+                                .iter()
+                                .map(|s| Vec3::new(s.emission.alpha, s.emission.intensity, 0.))
+                                .collect::<Vec<_>>()
+                                .try_into()
+                                .unwrap(),
+                        }),
                         mesh: meshes.add(lit_mesh.mesh.clone()),
                         transform: lit_mesh.transform,
                         ..default()
@@ -136,7 +149,10 @@ impl AssetLoader for VoxFileMeshAssetLoader {
             }))
             .await;
 
-            Ok(VoxFileMeshAsset { meshes })
+            Ok(VoxFileMeshAsset {
+                meshes,
+                palette: palette.samples.clone(),
+            })
         }
     }
 }

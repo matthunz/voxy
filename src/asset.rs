@@ -1,7 +1,6 @@
-use crate::{Chunk, Emission, Palette, PaletteSample, VoxelMaterial};
+use crate::{Chunk, Emission, Palette, PaletteSample};
 use bevy::{
-    asset::{io::Reader, AssetLoader, LoadContext, LoadState},
-    ecs::system::EntityCommands,
+    asset::{io::Reader, AssetLoader, LoadContext},
     prelude::*,
     utils::{hashbrown::HashMap, ConditionalSendFuture},
 };
@@ -15,8 +14,7 @@ pub struct VoxFileAssetPlugin;
 impl Plugin for VoxFileAssetPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<VoxFileAsset>()
-            .init_asset_loader::<VoxAssetLoader>()
-            .add_systems(Update, load_assets);
+            .init_asset_loader::<VoxAssetLoader>();
     }
 }
 
@@ -146,58 +144,6 @@ impl VoxFileAsset {
             )
         })
     }
-
-    fn spawn(
-        &self,
-        mut entity_commands: EntityCommands,
-        meshes: &mut Assets<Mesh>,
-        materials: &mut Assets<VoxelMaterial>,
-    ) {
-        let palette = self.palette();
-        let mut entities = HashMap::new();
-
-        entity_commands.with_children(|parent| {
-            for (chunk, transform, name) in self.chunks(&palette) {
-                let entity = parent
-                    .spawn_empty()
-                    .with_children(|parent| {
-                        // TODO
-                        for (idx, voxel) in chunk.voxels.iter().enumerate() {
-                            let sample = chunk.palette.samples[voxel.idx as usize];
-
-                            let [x, y, z] = chunk.shape.delinearize(idx as _).map(|n| n as f32);
-
-                            if sample.emission.alpha > 0. {
-                                parent.spawn(PointLightBundle {
-                                    point_light: PointLight {
-                                        intensity: sample.emission.alpha * 100_000.,
-                                        range: 10.,
-                                        ..default()
-                                    },
-                                    transform: Transform::from_translation(
-                                        Vec3::new(x, y, z) + transform.translation,
-                                    ),
-                                    ..default()
-                                });
-                            }
-                        }
-                    })
-                    .insert(MaterialMeshBundle {
-                        material: materials.add(VoxelMaterial),
-                        mesh: meshes.add(chunk),
-                        transform,
-                        ..default()
-                    })
-                    .id();
-
-                if let Some(name) = name {
-                    entities.insert(name, entity);
-                }
-            }
-        });
-
-        entity_commands.insert(VoxFileModels { entities });
-    }
 }
 
 fn visit_node<'a>(
@@ -283,27 +229,6 @@ impl AssetLoader for VoxAssetLoader {
 
             let file = dot_vox::load_bytes(&buf).unwrap();
             Ok(VoxFileAsset { file })
-        }
-    }
-}
-
-#[derive(Component)]
-struct Loaded;
-
-fn load_assets(
-    mut commands: Commands,
-    query: Query<(Entity, &Handle<VoxFileAsset>), Without<Loaded>>,
-    asset_server: Res<AssetServer>,
-    vox_assets: Res<Assets<VoxFileAsset>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<VoxelMaterial>>,
-) {
-    for (entity, handle) in &query {
-        if asset_server.load_state(handle) == LoadState::Loaded {
-            commands.entity(entity).insert(Loaded);
-
-            let vox = vox_assets.get(handle).unwrap();
-            vox.spawn(commands.entity(entity), &mut meshes, &mut materials);
         }
     }
 }
