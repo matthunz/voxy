@@ -1,4 +1,4 @@
-use crate::{Chunk, Emission, Palette, PaletteSample};
+use crate::{Chunk, Emission, PaletteSample};
 use bevy::{
     asset::{io::Reader, AssetLoader, LoadContext},
     prelude::*,
@@ -8,6 +8,7 @@ use block_mesh::{MergeVoxel, Voxel, VoxelVisibility};
 use dot_vox::{DotVoxData, SceneNode};
 use ndshape::{RuntimeShape, Shape};
 use smol::io::AsyncReadExt;
+use std::marker::PhantomData;
 
 pub struct VoxFileAssetPlugin;
 
@@ -21,6 +22,12 @@ impl Plugin for VoxFileAssetPlugin {
 #[derive(Clone, Copy, Default)]
 pub struct AssetVoxel {
     pub idx: u8,
+}
+
+impl AsRef<u8> for AssetVoxel {
+    fn as_ref(&self) -> &u8 {
+        &self.idx
+    }
 }
 
 impl Voxel for AssetVoxel {
@@ -43,27 +50,6 @@ impl MergeVoxel for AssetVoxel {
 
 pub struct VoxFilePalette {
     pub samples: Vec<PaletteSample>,
-}
-
-impl Palette for VoxFilePalette {
-    type Voxel = AssetVoxel;
-
-    fn sample(
-        &self,
-        voxel: &Self::Voxel,
-        _indices: &[u32; 6],
-        _positions: &[[f32; 3]; 4],
-        _normals: &[[f32; 3]; 4],
-    ) -> PaletteSample {
-        if voxel.idx == 0 {
-            PaletteSample {
-                color: Color::NONE,
-                emission: Emission::default(),
-            }
-        } else {
-            self.samples[voxel.idx as usize - 1]
-        }
-    }
 }
 
 #[derive(Component)]
@@ -101,17 +87,13 @@ impl VoxFileAsset {
 
     pub fn chunks<'a, P>(
         &'a self,
-        palette: P,
     ) -> impl Iterator<
         Item = (
             Chunk<P, Vec<AssetVoxel>, RuntimeShape<u32, 3>>,
             Transform,
             Option<String>,
         ),
-    > + 'a
-    where
-        P: Palette + Clone + 'a,
-    {
+    > + 'a {
         let mut models = Vec::new();
         visit_node(
             &self.file,
@@ -133,11 +115,11 @@ impl VoxFileAsset {
 
             (
                 Chunk {
-                    palette: palette.clone(),
                     voxels,
                     shape,
                     min: UVec3::ZERO,
                     max: UVec3::new(model.size.x + 1, model.size.z + 1, model.size.y + 1),
+                    _marker: PhantomData,
                 },
                 transform,
                 name,
