@@ -1,7 +1,4 @@
-use crate::{
-    VoxAssetLoader, VoxFileModels,
-    VoxelMaterial,
-};
+use crate::{PaletteSample, VoxAssetLoader, VoxFileModels, VoxelMaterial};
 use bevy::{
     asset::{io::Reader, AssetLoader, LoadContext, LoadState},
     ecs::system::EntityCommands,
@@ -18,6 +15,7 @@ impl Plugin for VoxFileMeshAssetPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<VoxFileMeshAsset>()
             .init_asset_loader::<VoxFileMeshAssetLoader>()
+            .init_resource::<LoadedAssets>()
             .add_systems(Update, load_assets);
     }
 }
@@ -38,20 +36,38 @@ pub struct LitMesh {
 
 #[derive(Debug, Asset, TypePath)]
 pub struct VoxFileMeshAsset {
-    meshes: Vec<LitMesh>,
+    pub meshes: Vec<LitMesh>,
+    pub palette: Vec<PaletteSample>,
 }
 
 impl VoxFileMeshAsset {
     fn spawn(
         &self,
         mut entity_commands: EntityCommands,
-        meshes: &mut Assets<Mesh>,
+        meshes: &Vec<Handle<Mesh>>,
         materials: &mut Assets<VoxelMaterial>,
     ) {
         let mut entities = HashMap::new();
 
+        let material = materials.add(VoxelMaterial {
+            colors: self
+                .palette
+                .iter()
+                .map(|s| s.color.to_linear().to_vec3())
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap(),
+            emissions: self
+                .palette
+                .iter()
+                .map(|s| Vec3::new(s.emission.alpha, s.emission.intensity, 0.))
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap(),
+        });
+
         entity_commands.with_children(|parent| {
-            for lit_mesh in &self.meshes {
+            for (idx, lit_mesh) in self.meshes.iter().enumerate() {
                 let entity = parent
                     .spawn_empty()
                     .with_children(|parent| {
@@ -68,8 +84,8 @@ impl VoxFileMeshAsset {
                         }
                     })
                     .insert(MaterialMeshBundle {
-                        material: materials.add(VoxelMaterial),
-                        mesh: meshes.add(lit_mesh.mesh.clone()),
+                        material: material.clone(),
+                        mesh: meshes[idx].clone(),
                         transform: lit_mesh.transform,
                         ..default()
                     })
@@ -105,16 +121,18 @@ impl AssetLoader for VoxFileMeshAssetLoader {
             let x = VoxAssetLoader.load(reader, settings, load_context).await?;
 
             let palette = Arc::new(x.palette());
-            let chunks: Vec<_> = x.chunks(palette.clone()).collect();
+            let chunks: Vec<_> = x.chunks().collect();
 
             let meshes = future::join_all(chunks.into_iter().map(|(chunk, transform, name)| {
+                let palette = palette.clone();
+
                 smol::unblock(move || {
                     let mesh = chunk.build();
-                    let mut lights = Vec::new();
 
-                    // TODO
+                    // TODO check positions
+                    let mut lights = Vec::new();
                     for (idx, voxel) in chunk.voxels.iter().enumerate() {
-                        let sample = chunk.palette.samples[voxel.idx as usize];
+                        let sample = palette.samples[voxel.idx as usize];
 
                         let [x, y, z] = chunk.shape.delinearize(idx as _).map(|n| n as f32);
 
@@ -136,9 +154,17 @@ impl AssetLoader for VoxFileMeshAssetLoader {
             }))
             .await;
 
-            Ok(VoxFileMeshAsset { meshes })
+            Ok(VoxFileMeshAsset {
+                meshes,
+                palette: palette.samples.clone(),
+            })
         }
     }
+}
+
+#[derive(Default, Resource)]
+struct LoadedAssets {
+    assets: HashMap<AssetId<VoxFileMeshAsset>, Vec<Handle<Mesh>>>,
 }
 
 #[derive(Component)]
@@ -151,13 +177,29 @@ fn load_assets(
     vox_assets: Res<Assets<VoxFileMeshAsset>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<VoxelMaterial>>,
+    mut loaded_assets: ResMut<LoadedAssets>,
 ) {
     for (entity, handle) in &query {
         if asset_server.load_state(handle) == LoadState::Loaded {
+            let vox = vox_assets.get(handle).unwrap();
+
+            if !loaded_assets.assets.contains_key(&handle.id()) {
+                loaded_assets.assets.insert(
+                    handle.id(),
+                    vox.meshes
+                        .iter()
+                        .map(|lit_mesh| meshes.add(lit_mesh.mesh.clone()))
+                        .collect(),
+                );
+            }
+
             commands.entity(entity).insert(Loaded);
 
-            let vox = vox_assets.get(handle).unwrap();
-            vox.spawn(commands.entity(entity), &mut meshes, &mut materials);
+            vox.spawn(
+                commands.entity(entity),
+                &loaded_assets.assets.get(&handle.id()).unwrap(),
+                &mut materials,
+            );
         }
     }
 }

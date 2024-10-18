@@ -1,11 +1,10 @@
-use std::sync::Arc;
-
+use std::marker::PhantomData;
 use bevy::{
     prelude::*,
     render::{
-        mesh::{Indices, VertexAttributeValues},
+        mesh::{Indices, MeshVertexAttribute, VertexAttributeValues},
         render_asset::RenderAssetUsages,
-        render_resource::PrimitiveTopology,
+        render_resource::{PrimitiveTopology, VertexFormat},
     },
 };
 use block_mesh::{greedy_quads, GreedyQuadsBuffer, MergeVoxel, RIGHT_HANDED_Y_UP_CONFIG};
@@ -17,77 +16,37 @@ pub use self::asset::{
 };
 
 mod mesh_asset;
-pub use self::mesh_asset::{LitMesh, VoxFileMeshAsset, VoxFileMeshAssetLoader, VoxelLight, VoxFileMeshAssetPlugin};
+pub use self::mesh_asset::{
+    LitMesh, VoxFileMeshAsset, VoxFileMeshAssetLoader, VoxFileMeshAssetPlugin, VoxelLight,
+};
 
 mod voxel_material;
 pub use self::voxel_material::{VoxelMaterial, VoxelMaterialPlugin};
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Emission {
     pub alpha: f32,
     pub intensity: f32,
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct PaletteSample {
     pub color: Color,
     pub emission: Emission,
 }
 
-pub trait Palette {
-    type Voxel;
-
-    fn sample(
-        &self,
-        voxel: &Self::Voxel,
-        indices: &[u32; 6],
-        positions: &[[f32; 3]; 4],
-        normals: &[[f32; 3]; 4],
-    ) -> PaletteSample;
-}
-
-impl<P: Palette> Palette for &P {
-    type Voxel = P::Voxel;
-
-    fn sample(
-        &self,
-        voxel: &Self::Voxel,
-        indices: &[u32; 6],
-        positions: &[[f32; 3]; 4],
-        normals: &[[f32; 3]; 4],
-    ) -> PaletteSample {
-        (**self).sample(voxel, indices, positions, normals)
-    }
-}
-
-
-impl<P: Palette> Palette for Arc<P> {
-    type Voxel = P::Voxel;
-
-    fn sample(
-        &self,
-        voxel: &Self::Voxel,
-        indices: &[u32; 6],
-        positions: &[[f32; 3]; 4],
-        normals: &[[f32; 3]; 4],
-    ) -> PaletteSample {
-        (**self).sample(voxel, indices, positions, normals)
-    }
-}
-
-pub struct Chunk<P, V, S> {
-    pub palette: P,
-    pub voxels: V,
+pub struct Chunk<V, VS, S> {
+    pub voxels: VS,
     pub shape: S,
     pub min: UVec3,
     pub max: UVec3,
+    _marker: PhantomData<V>,
 }
 
-impl<P, V, VS, S> MeshBuilder for Chunk<P, VS, S>
+impl<V, VS, S> MeshBuilder for Chunk<V, VS, S>
 where
-    P: Palette<Voxel = V>,
     VS: AsRef<[V]>,
-    V: MergeVoxel,
+    V: MergeVoxel + AsRef<u8>,
     S: Shape<3, Coord = u32>,
 {
     fn build(&self) -> Mesh {
@@ -109,8 +68,7 @@ where
         let mut indices = Vec::with_capacity(num_indices);
         let mut positions = Vec::with_capacity(num_vertices);
         let mut normals = Vec::with_capacity(num_vertices);
-        let mut colors = Vec::with_capacity(num_vertices);
-        let mut emissions = Vec::with_capacity(num_vertices);
+        let mut color_indices = Vec::with_capacity(num_vertices);
 
         for (quads, face) in quad_buffer.quads.groups.into_iter().zip(faces) {
             for quad in quads {
@@ -125,14 +83,7 @@ where
 
                 let idx = self.shape.linearize(quad.minimum);
                 for _ in 0..4 {
-                    let sample = self.palette.sample(
-                        &self.voxels.as_ref()[idx as usize],
-                        &quad_indices,
-                        &quad_positions,
-                        &quad_normals,
-                    );
-                    colors.push(sample.color.to_linear().to_f32_array());
-                    emissions.push([sample.emission.alpha, sample.emission.intensity]);
+                    color_indices.push(*self.voxels.as_ref()[idx as usize].as_ref() as u32 - 1);
                 }
             }
         }
@@ -149,8 +100,13 @@ where
             Mesh::ATTRIBUTE_NORMAL,
             VertexAttributeValues::Float32x3(normals),
         )
-        .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, emissions)
-        .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, colors)
+        .with_inserted_attribute(
+            ATTRIBUTE_COLOR_INDEX,
+            VertexAttributeValues::Uint32(color_indices),
+        )
         .with_inserted_indices(Indices::U32(indices))
     }
 }
+
+const ATTRIBUTE_COLOR_INDEX: MeshVertexAttribute =
+    MeshVertexAttribute::new("ColorIndex", 988940917, VertexFormat::Uint32);
