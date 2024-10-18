@@ -10,6 +10,11 @@ use block_mesh::{greedy_quads, GreedyQuadsBuffer, MergeVoxel, RIGHT_HANDED_Y_UP_
 use ndshape::Shape;
 use std::marker::PhantomData;
 
+pub mod prelude {
+    pub use crate::voxel_material::VoxelMaterial;
+    pub use crate::scene::{VoxelScene, VoxelSceneModels};
+}
+
 mod asset;
 pub use self::asset::{
     AssetVoxel, VoxAssetLoader, VoxFileAsset, VoxFileAssetPlugin,  VoxFilePalette,

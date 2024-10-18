@@ -1,5 +1,5 @@
 use bevy::{core_pipeline::bloom::BloomSettings, prelude::*};
-use voxy::{VoxelScene, VoxelSceneModels};
+use voxy::prelude::*;
 
 fn main() {
     App::new()
