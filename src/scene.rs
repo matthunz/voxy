@@ -16,10 +16,9 @@ impl Plugin for ScenePlugin {
         app.init_asset::<VoxelScene>()
             .init_asset_loader::<SceneLoader>()
             .init_resource::<LoadedAssets>()
-            .add_systems(Update, load_scenes);
+            .add_systems(Update, (load_scenes, handle_scene_events));
     }
 }
-
 
 #[derive(Component)]
 pub struct VoxelSceneModels {
@@ -206,6 +205,49 @@ pub fn load_scenes(
                 &loaded_assets.assets.get(&handle.id()).unwrap(),
                 &mut materials,
             );
+        }
+    }
+}
+
+pub fn handle_scene_events(
+    mut commands: Commands,
+    mut events: EventReader<AssetEvent<VoxelScene>>,
+    scenes: Res<Assets<VoxelScene>>,
+    query: Query<(Entity, &Handle<VoxelScene>), With<Loaded>>,
+    mut loaded_assets: ResMut<LoadedAssets>,
+    mut materials: ResMut<Assets<VoxelMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+) {
+    for event in events.read() {
+        match event {
+            AssetEvent::Modified { id } => {
+                for (entity, handle) in &query {
+                    if handle.id() == *id {
+                        let scene = scenes.get(handle).unwrap();
+
+                        commands
+                            .entity(entity)
+                            .despawn_descendants()
+                            .remove::<VoxelSceneModels>();
+
+                        loaded_assets.assets.insert(
+                            handle.id(),
+                            scene
+                                .meshes
+                                .iter()
+                                .map(|lit_mesh| meshes.add(lit_mesh.mesh.clone()))
+                                .collect(),
+                        );
+
+                        scene.spawn(
+                            commands.entity(entity),
+                            &loaded_assets.assets.get(&handle.id()).unwrap(),
+                            &mut materials,
+                        );
+                    }
+                }
+            }
+            _ => {}
         }
     }
 }

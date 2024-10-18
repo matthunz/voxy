@@ -6,7 +6,7 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-bevy = "0.14.2"
+bevy = { version = "0.14.2", features = ["file_watcher"] }
 block-mesh = "0.2.0"
 dot_vox = "5.1.1"
 futures = "0.3.31"

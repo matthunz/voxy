@@ -11,6 +11,9 @@ A voxel engine for [Bevy](https://github.com/bevyengine/bevy).
 Features:
  - Uses the [block_mesh](https://docs.rs/block-mesh/latest/block_mesh/) crate for high-performance chunk meshing
  - Uses the [dot_vox](https://github.com/dust-engine/dot_vox) crate to load [MagicaVoxel](https://ephtracy.github.io/) `.vox` files
+   - Load multiple models into a `Scene`
+   - Hot-reload of scene files
+   - Emissive textures and lighting
 
 ```rs
 use bevy::{core_pipeline::bloom::BloomSettings, prelude::*};
