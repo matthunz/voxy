@@ -1,9 +1,17 @@
 use bevy::{core_pipeline::bloom::BloomSettings, prelude::*};
-use voxy::{VoxFileAsset, VoxFileAssetPlugin, VoxFileModels, VoxelMaterialPlugin};
+use voxy::{
+    VoxFileAssetPlugin, VoxFileMeshAsset, VoxFileMeshAssetPlugin, VoxFileModels,
+    VoxelMaterialPlugin,
+};
 
 fn main() {
     App::new()
-        .add_plugins((DefaultPlugins, VoxelMaterialPlugin, VoxFileAssetPlugin))
+        .add_plugins((
+            DefaultPlugins,
+            VoxelMaterialPlugin,
+            VoxFileAssetPlugin,
+            VoxFileMeshAssetPlugin,
+        ))
         .add_systems(Startup, setup)
         .add_systems(Update, rotate)
         .run();
@@ -11,7 +19,7 @@ fn main() {
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
-        asset_server.load::<VoxFileAsset>("character.vox"),
+        asset_server.load::<VoxFileMeshAsset>("character.vox"),
         SpatialBundle::default(),
     ));
 

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use bevy::{
     prelude::*,
     render::{
@@ -13,6 +15,9 @@ mod asset;
 pub use self::asset::{
     AssetVoxel, VoxAssetLoader, VoxFileAsset, VoxFileAssetPlugin, VoxFileModels, VoxFilePalette,
 };
+
+mod mesh_asset;
+pub use self::mesh_asset::{LitMesh, VoxFileMeshAsset, VoxFileMeshAssetLoader, VoxelLight, VoxFileMeshAssetPlugin};
 
 mod voxel_material;
 pub use self::voxel_material::{VoxelMaterial, VoxelMaterialPlugin};
@@ -42,6 +47,21 @@ pub trait Palette {
 }
 
 impl<P: Palette> Palette for &P {
+    type Voxel = P::Voxel;
+
+    fn sample(
+        &self,
+        voxel: &Self::Voxel,
+        indices: &[u32; 6],
+        positions: &[[f32; 3]; 4],
+        normals: &[[f32; 3]; 4],
+    ) -> PaletteSample {
+        (**self).sample(voxel, indices, positions, normals)
+    }
+}
+
+
+impl<P: Palette> Palette for Arc<P> {
     type Voxel = P::Voxel;
 
     fn sample(

@@ -101,16 +101,19 @@ impl VoxFileAsset {
         }
     }
 
-    pub fn chunks<'a>(
+    pub fn chunks<'a, P>(
         &'a self,
-        palette: &'a VoxFilePalette,
+        palette: P,
     ) -> impl Iterator<
         Item = (
-            Chunk<&'a VoxFilePalette, Vec<AssetVoxel>, RuntimeShape<u32, 3>>,
+            Chunk<P, Vec<AssetVoxel>, RuntimeShape<u32, 3>>,
             Transform,
             Option<String>,
         ),
-    > + 'a {
+    > + 'a
+    where
+        P: Palette + Clone + 'a,
+    {
         let mut models = Vec::new();
         visit_node(
             &self.file,
@@ -132,7 +135,7 @@ impl VoxFileAsset {
 
             (
                 Chunk {
-                    palette,
+                    palette: palette.clone(),
                     voxels,
                     shape,
                     min: UVec3::ZERO,
