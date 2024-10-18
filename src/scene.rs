@@ -50,7 +50,7 @@ impl VoxelScene {
         &self,
         mut entity_commands: EntityCommands,
         material: Handle<VoxelMaterial>,
-        meshes: &Vec<Handle<Mesh>>,
+        meshes: &[Handle<Mesh>],
     ) {
         let mut entities = HashMap::new();
 
@@ -110,7 +110,7 @@ impl AssetLoader for SceneLoader {
 
             let material = asset.material();
 
-            let emissions = Arc::new(material.emissions.clone());
+            let emissions = Arc::new(material.emissions);
             let chunks: Vec<_> = asset.chunks().collect();
 
             let meshes = future::join_all(chunks.into_iter().map(|(chunk, transform, name)| {
@@ -149,9 +149,14 @@ impl AssetLoader for SceneLoader {
     }
 }
 
+struct MaterialMeshes {
+    material: Handle<VoxelMaterial>,
+    meshes: Vec<Handle<Mesh>>,
+}
+
 #[derive(Default, Resource)]
 pub struct LoadedAssets {
-    assets: HashMap<AssetId<VoxelScene>, (Handle<VoxelMaterial>, Vec<Handle<Mesh>>)>,
+    assets: HashMap<AssetId<VoxelScene>, MaterialMeshes>,
 }
 
 #[derive(Component)]
@@ -168,25 +173,30 @@ pub fn load_scenes(
 ) {
     for (entity, handle) in &query {
         if asset_server.load_state(handle) == LoadState::Loaded {
-            let vox = vox_assets.get(handle).unwrap();
+            let scene = vox_assets.get(handle).unwrap();
 
             if !loaded_assets.assets.contains_key(&handle.id()) {
                 loaded_assets.assets.insert(
                     handle.id(),
-                    (
-                        materials.add(vox.material.clone()),
-                        vox.meshes
+                    MaterialMeshes {
+                        material: materials.add(scene.material.clone()),
+                        meshes: scene
+                            .meshes
                             .iter()
                             .map(|lit_mesh| meshes.add(lit_mesh.mesh.clone()))
                             .collect(),
-                    ),
+                    },
                 );
             }
 
             commands.entity(entity).insert(Loaded);
 
-            let (material, meshes) = &loaded_assets.assets.get(&handle.id()).unwrap();
-            vox.spawn(commands.entity(entity), material.clone(), meshes);
+            let material_meshes = &loaded_assets.assets.get(&handle.id()).unwrap();
+            scene.spawn(
+                commands.entity(entity),
+                material_meshes.material.clone(),
+                &material_meshes.meshes,
+            );
         }
     }
 }
@@ -201,36 +211,36 @@ pub fn handle_scene_events(
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     for event in events.read() {
-        match event {
-            AssetEvent::Modified { id } => {
-                for (entity, handle) in &query {
-                    if handle.id() == *id {
-                        let scene = scenes.get(handle).unwrap();
+        if let AssetEvent::Modified { id } = event {
+            for (entity, handle) in &query {
+                if handle.id() == *id {
+                    let scene = scenes.get(handle).unwrap();
 
-                        commands
-                            .entity(entity)
-                            .despawn_descendants()
-                            .remove::<VoxelSceneModels>();
+                    commands
+                        .entity(entity)
+                        .despawn_descendants()
+                        .remove::<VoxelSceneModels>();
 
-                        loaded_assets.assets.insert(
-                            handle.id(),
-                            (
-                                materials.add(scene.material.clone()),
-                                scene
-                                    .meshes
-                                    .iter()
-                                    .map(|lit_mesh| meshes.add(lit_mesh.mesh.clone()))
-                                    .collect(),
-                            ),
-                        );
+                    loaded_assets.assets.insert(
+                        handle.id(),
+                        MaterialMeshes {
+                            material: materials.add(scene.material.clone()),
+                            meshes: scene
+                                .meshes
+                                .iter()
+                                .map(|lit_mesh| meshes.add(lit_mesh.mesh.clone()))
+                                .collect(),
+                        },
+                    );
 
-                        let (material, meshes) = loaded_assets.assets.get(&handle.id()).unwrap();
-
-                        scene.spawn(commands.entity(entity), material.clone(), meshes);
-                    }
+                    let material_meshes = &loaded_assets.assets.get(&handle.id()).unwrap();
+                    scene.spawn(
+                        commands.entity(entity),
+                        material_meshes.material.clone(),
+                        &material_meshes.meshes,
+                    );
                 }
             }
-            _ => {}
         }
     }
 }

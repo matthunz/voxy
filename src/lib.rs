@@ -16,9 +16,7 @@ pub mod prelude {
 }
 
 mod asset;
-pub use self::asset::{
-    AssetVoxel, VoxAssetLoader, VoxFileAsset, VoxFileAssetPlugin, 
-};
+pub use self::asset::{AssetVoxel, VoxAssetLoader, VoxFileAsset, VoxFileAssetPlugin};
 
 pub mod scene;
 pub use self::scene::{ScenePlugin, VoxelLight, VoxelScene, VoxelSceneModels};
@@ -38,9 +36,9 @@ pub const ATTRIBUTE_COLOR_INDEX: MeshVertexAttribute =
     MeshVertexAttribute::new("ColorIndex", 988940917, VertexFormat::Uint32);
 
 /// A chunk of voxels that can be built into a mesh.
-/// 
+///
 /// This struct produces a [`Mesh`] with standard attributes so it can be rendered with a [`VoxelMaterial`] or extended with custom shaders.
-/// 
+///
 /// [`ATTRIBUTE_COLOR_INDEX`] is inserted into the mesh for each quad, representing the voxel index.
 pub struct Chunk<V, VS, S> {
     pub voxels: VS,
@@ -48,6 +46,18 @@ pub struct Chunk<V, VS, S> {
     pub min: UVec3,
     pub max: UVec3,
     _marker: PhantomData<V>,
+}
+
+impl<V, VS, S> Chunk<V, VS, S> {
+    pub fn new(voxels: VS, shape: S, min: UVec3, max: UVec3) -> Self {
+        Self {
+            voxels,
+            shape,
+            min,
+            max,
+            _marker: PhantomData,
+        }
+    }
 }
 
 impl<V, VS, S> MeshBuilder for Chunk<V, VS, S>

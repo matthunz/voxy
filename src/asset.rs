@@ -8,7 +8,6 @@ use block_mesh::{MergeVoxel, Voxel, VoxelVisibility};
 use dot_vox::{DotVoxData, SceneNode};
 use ndshape::{RuntimeShape, Shape};
 use smol::io::AsyncReadExt;
-use std::marker::PhantomData;
 
 pub struct VoxFileAssetPlugin;
 
@@ -89,15 +88,15 @@ impl VoxFileAsset {
         }
     }
 
-    pub fn chunks<'a, P>(
-        &'a self,
+    pub fn chunks<V>(
+        &self,
     ) -> impl Iterator<
         Item = (
-            Chunk<P, Vec<AssetVoxel>, RuntimeShape<u32, 3>>,
+            Chunk<V, Vec<AssetVoxel>, RuntimeShape<u32, 3>>,
             Transform,
             Option<String>,
         ),
-    > + 'a {
+    > + '_ {
         let mut models = Vec::new();
         visit_node(
             &self.file,
@@ -118,19 +117,17 @@ impl VoxFileAsset {
             }
 
             (
-                Chunk {
+                Chunk::new(
                     voxels,
                     shape,
-                    min: UVec3::ZERO,
-                    max: UVec3::new(model.size.x + 1, model.size.z + 1, model.size.y + 1),
-                    _marker: PhantomData,
-                },
+                    UVec3::ZERO,
+                    UVec3::new(model.size.x + 1, model.size.z + 1, model.size.y + 1),
+                ),
                 transform,
                 name,
             )
         })
     }
-
 }
 
 fn visit_node<'a>(
