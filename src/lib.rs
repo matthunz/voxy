@@ -1,4 +1,3 @@
-use std::marker::PhantomData;
 use bevy::{
     prelude::*,
     render::{
@@ -9,19 +8,26 @@ use bevy::{
 };
 use block_mesh::{greedy_quads, GreedyQuadsBuffer, MergeVoxel, RIGHT_HANDED_Y_UP_CONFIG};
 use ndshape::Shape;
+use std::marker::PhantomData;
 
 mod asset;
 pub use self::asset::{
-    AssetVoxel, VoxAssetLoader, VoxFileAsset, VoxFileAssetPlugin, VoxFileModels, VoxFilePalette,
+    AssetVoxel, VoxAssetLoader, VoxFileAsset, VoxFileAssetPlugin,  VoxFilePalette,
 };
 
-mod mesh_asset;
-pub use self::mesh_asset::{
-    LitMesh, VoxFileMeshAsset, VoxFileMeshAssetLoader, VoxFileMeshAssetPlugin, VoxelLight,
-};
+pub mod scene;
+pub use self::scene::{VoxelScene, ScenePlugin, VoxelLight, VoxelSceneModels};
 
 mod voxel_material;
 pub use self::voxel_material::{VoxelMaterial, VoxelMaterialPlugin};
+
+pub struct DefaultPlugins;
+
+impl Plugin for DefaultPlugins {
+    fn build(&self, app: &mut App) {
+        app.add_plugins((VoxelMaterialPlugin, VoxFileAssetPlugin, ScenePlugin));
+    }
+}
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Emission {

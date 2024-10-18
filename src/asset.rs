@@ -2,7 +2,7 @@ use crate::{Chunk, Emission, PaletteSample};
 use bevy::{
     asset::{io::Reader, AssetLoader, LoadContext},
     prelude::*,
-    utils::{hashbrown::HashMap, ConditionalSendFuture},
+    utils::ConditionalSendFuture,
 };
 use block_mesh::{MergeVoxel, Voxel, VoxelVisibility};
 use dot_vox::{DotVoxData, SceneNode};
@@ -50,11 +50,6 @@ impl MergeVoxel for AssetVoxel {
 
 pub struct VoxFilePalette {
     pub samples: Vec<PaletteSample>,
-}
-
-#[derive(Component)]
-pub struct VoxFileModels {
-    pub entities: HashMap<String, Entity>,
 }
 
 #[derive(Debug, Asset, TypePath)]

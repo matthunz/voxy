@@ -1,17 +1,9 @@
 use bevy::{core_pipeline::bloom::BloomSettings, prelude::*};
-use voxy::{
-    VoxFileAssetPlugin, VoxFileMeshAsset, VoxFileMeshAssetPlugin, VoxFileModels,
-    VoxelMaterialPlugin,
-};
+use voxy::{VoxelScene, VoxelSceneModels};
 
 fn main() {
     App::new()
-        .add_plugins((
-            DefaultPlugins,
-            VoxelMaterialPlugin,
-            VoxFileAssetPlugin,
-            VoxFileMeshAssetPlugin,
-        ))
+        .add_plugins((DefaultPlugins, voxy::DefaultPlugins))
         .add_systems(Startup, setup)
         .add_systems(Update, rotate)
         .run();
@@ -19,7 +11,7 @@ fn main() {
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
-        asset_server.load::<VoxFileMeshAsset>("character.vox"),
+        asset_server.load::<VoxelScene>("character.vox"),
         SpatialBundle::default(),
     ));
 
@@ -42,7 +34,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     ));
 }
 
-fn rotate(models_query: Query<&VoxFileModels>, mut transform_query: Query<&mut Transform>) {
+fn rotate(models_query: Query<&VoxelSceneModels>, mut transform_query: Query<&mut Transform>) {
     for models in &models_query {
         if let Some(entity) = models.entities.get("right_arm") {
             let mut transform = transform_query.get_mut(*entity).unwrap();

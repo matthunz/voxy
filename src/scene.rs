@@ -1,4 +1,4 @@
-use crate::{PaletteSample, VoxAssetLoader, VoxFileModels, VoxelMaterial};
+use crate::{PaletteSample, VoxAssetLoader, VoxelMaterial};
 use bevy::{
     asset::{io::Reader, AssetLoader, LoadContext, LoadState},
     ecs::system::EntityCommands,
@@ -9,15 +9,21 @@ use futures::future;
 use ndshape::Shape;
 use std::sync::Arc;
 
-pub struct VoxFileMeshAssetPlugin;
+pub struct ScenePlugin;
 
-impl Plugin for VoxFileMeshAssetPlugin {
+impl Plugin for ScenePlugin {
     fn build(&self, app: &mut App) {
-        app.init_asset::<VoxFileMeshAsset>()
-            .init_asset_loader::<VoxFileMeshAssetLoader>()
+        app.init_asset::<VoxelScene>()
+            .init_asset_loader::<SceneLoader>()
             .init_resource::<LoadedAssets>()
-            .add_systems(Update, load_assets);
+            .add_systems(Update, load_scenes);
     }
+}
+
+
+#[derive(Component)]
+pub struct VoxelSceneModels {
+    pub entities: HashMap<String, Entity>,
 }
 
 #[derive(Debug)]
@@ -35,12 +41,12 @@ pub struct LitMesh {
 }
 
 #[derive(Debug, Asset, TypePath)]
-pub struct VoxFileMeshAsset {
+pub struct VoxelScene {
     pub meshes: Vec<LitMesh>,
     pub palette: Vec<PaletteSample>,
 }
 
-impl VoxFileMeshAsset {
+impl VoxelScene {
     fn spawn(
         &self,
         mut entity_commands: EntityCommands,
@@ -97,15 +103,15 @@ impl VoxFileMeshAsset {
             }
         });
 
-        entity_commands.insert(VoxFileModels { entities });
+        entity_commands.insert(VoxelSceneModels { entities });
     }
 }
 
 #[derive(Default)]
-pub struct VoxFileMeshAssetLoader;
+pub struct SceneLoader;
 
-impl AssetLoader for VoxFileMeshAssetLoader {
-    type Asset = VoxFileMeshAsset;
+impl AssetLoader for SceneLoader {
+    type Asset = VoxelScene;
 
     type Settings = ();
 
@@ -154,7 +160,7 @@ impl AssetLoader for VoxFileMeshAssetLoader {
             }))
             .await;
 
-            Ok(VoxFileMeshAsset {
+            Ok(VoxelScene {
                 meshes,
                 palette: palette.samples.clone(),
             })
@@ -163,18 +169,18 @@ impl AssetLoader for VoxFileMeshAssetLoader {
 }
 
 #[derive(Default, Resource)]
-struct LoadedAssets {
-    assets: HashMap<AssetId<VoxFileMeshAsset>, Vec<Handle<Mesh>>>,
+pub struct LoadedAssets {
+    assets: HashMap<AssetId<VoxelScene>, Vec<Handle<Mesh>>>,
 }
 
 #[derive(Component)]
-struct Loaded;
+pub struct Loaded;
 
-fn load_assets(
+pub fn load_scenes(
     mut commands: Commands,
-    query: Query<(Entity, &Handle<VoxFileMeshAsset>), Without<Loaded>>,
+    query: Query<(Entity, &Handle<VoxelScene>), Without<Loaded>>,
     asset_server: Res<AssetServer>,
-    vox_assets: Res<Assets<VoxFileMeshAsset>>,
+    vox_assets: Res<Assets<VoxelScene>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<VoxelMaterial>>,
     mut loaded_assets: ResMut<LoadedAssets>,
