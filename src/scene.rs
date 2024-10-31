@@ -124,7 +124,11 @@ impl AssetLoader for SceneLoader {
                     for (idx, voxel) in asset_chunk.chunk.voxels.iter().enumerate() {
                         let emissive = emissions[voxel.idx as usize];
 
-                        let [x, y, z] = asset_chunk.chunk.shape.delinearize(idx as _).map(|n| n as f32);
+                        let [x, y, z] = asset_chunk
+                            .chunk
+                            .shape
+                            .delinearize(idx as _)
+                            .map(|n| n as f32);
 
                         if emissive.x > 0. {
                             lights.push(VoxelLight {
