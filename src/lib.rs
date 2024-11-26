@@ -11,7 +11,7 @@ use ndshape::Shape;
 use std::marker::PhantomData;
 
 pub mod prelude {
-    pub use crate::scene::{VoxelScene, VoxelSceneModels};
+    pub use crate::scene::{VoxelScene, VoxelSceneHandle, VoxelSceneModels};
     pub use crate::voxel_material::VoxelMaterial;
 }
 

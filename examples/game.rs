@@ -1,4 +1,4 @@
-use bevy::{core_pipeline::bloom::BloomSettings, prelude::*};
+use bevy::{core_pipeline::bloom::Bloom, prelude::*};
 use voxy::prelude::*;
 
 fn main() {
@@ -11,8 +11,9 @@ fn main() {
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
-        asset_server.load::<VoxelScene>("character.vox"),
-        SpatialBundle::default(),
+        VoxelSceneHandle(asset_server.load("character.vox")),
+        Transform::default(),
+        Visibility::default(),
     ));
 
     commands.insert_resource(AmbientLight {
@@ -21,16 +22,13 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     });
 
     commands.spawn((
-        Camera3dBundle {
-            camera: Camera {
-                hdr: true,
-                ..default()
-            },
-            transform: Transform::from_translation(Vec3::new(-60., 60., -60.))
-                .looking_at(Vec3::ZERO, Vec3::Y),
-            ..Default::default()
+        Camera {
+            hdr: true,
+            ..default()
         },
-        BloomSettings::NATURAL,
+        Camera3d::default(),
+        Transform::from_translation(Vec3::new(-60., 60., -60.)).looking_at(Vec3::ZERO, Vec3::Y),
+        Bloom::NATURAL,
     ));
 }
 

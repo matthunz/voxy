@@ -1,6 +1,6 @@
 use crate::{VoxAssetLoader, VoxelMaterial};
 use bevy::{
-    asset::{io::Reader, AssetLoader, LoadContext, LoadState},
+    asset::{io::Reader, AssetLoader, LoadContext},
     ecs::system::EntityCommands,
     prelude::*,
     utils::{hashbrown::HashMap, ConditionalSendFuture},
@@ -60,23 +60,21 @@ impl VoxelScene {
                     .spawn_empty()
                     .with_children(|parent| {
                         for light in &lit_mesh.lights {
-                            parent.spawn(PointLightBundle {
-                                point_light: PointLight {
+                            parent.spawn((
+                                PointLight {
                                     intensity: light.intensity * 100_000.,
                                     range: 10.,
                                     ..default()
                                 },
-                                transform: Transform::from_translation(light.origin),
-                                ..default()
-                            });
+                                Transform::from_translation(light.origin),
+                            ));
                         }
                     })
-                    .insert(MaterialMeshBundle {
-                        material: material.clone(),
-                        mesh: meshes[idx].clone(),
-                        transform: lit_mesh.transform,
-                        ..default()
-                    })
+                    .insert((
+                        MeshMaterial3d(material.clone()),
+                        Mesh3d(meshes[idx].clone()),
+                        lit_mesh.transform,
+                    ))
                     .id();
 
                 if let Some(name) = &lit_mesh.name {
@@ -99,11 +97,11 @@ impl AssetLoader for SceneLoader {
 
     type Error = Box<dyn std::error::Error + Send + Sync>;
 
-    fn load<'a>(
-        &'a self,
-        reader: &'a mut Reader,
-        settings: &'a Self::Settings,
-        load_context: &'a mut LoadContext,
+    fn load(
+        &self,
+        reader: &mut dyn Reader,
+        settings: &Self::Settings,
+        load_context: &mut LoadContext,
     ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
         async move {
             let asset = VoxAssetLoader.load(reader, settings, load_context).await?;
@@ -166,9 +164,12 @@ pub struct LoadedAssets {
 #[derive(Component)]
 pub struct Loaded;
 
+#[derive(Component)]
+pub struct VoxelSceneHandle(pub Handle<VoxelScene>);
+
 pub fn load_scenes(
     mut commands: Commands,
-    query: Query<(Entity, &Handle<VoxelScene>), Without<Loaded>>,
+    query: Query<(Entity, &VoxelSceneHandle), Without<Loaded>>,
     asset_server: Res<AssetServer>,
     vox_assets: Res<Assets<VoxelScene>>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -176,12 +177,12 @@ pub fn load_scenes(
     mut loaded_assets: ResMut<LoadedAssets>,
 ) {
     for (entity, handle) in &query {
-        if asset_server.load_state(handle) == LoadState::Loaded {
-            let scene = vox_assets.get(handle).unwrap();
+        if asset_server.load_state(&handle.0).is_loaded() {
+            let scene = vox_assets.get(&handle.0).unwrap();
 
-            if !loaded_assets.assets.contains_key(&handle.id()) {
+            if !loaded_assets.assets.contains_key(&handle.0.id()) {
                 loaded_assets.assets.insert(
-                    handle.id(),
+                    handle.0.id(),
                     MaterialMeshes {
                         material: materials.add(scene.material.clone()),
                         meshes: scene
@@ -195,7 +196,7 @@ pub fn load_scenes(
 
             commands.entity(entity).insert(Loaded);
 
-            let material_meshes = &loaded_assets.assets.get(&handle.id()).unwrap();
+            let material_meshes = &loaded_assets.assets.get(&handle.0.id()).unwrap();
             scene.spawn(
                 commands.entity(entity),
                 material_meshes.material.clone(),
@@ -209,7 +210,7 @@ pub fn handle_scene_events(
     mut commands: Commands,
     mut events: EventReader<AssetEvent<VoxelScene>>,
     scenes: Res<Assets<VoxelScene>>,
-    query: Query<(Entity, &Handle<VoxelScene>), With<Loaded>>,
+    query: Query<(Entity, &VoxelSceneHandle), With<Loaded>>,
     mut loaded_assets: ResMut<LoadedAssets>,
     mut materials: ResMut<Assets<VoxelMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -217,8 +218,8 @@ pub fn handle_scene_events(
     for event in events.read() {
         if let AssetEvent::Modified { id } = event {
             for (entity, handle) in &query {
-                if handle.id() == *id {
-                    let scene = scenes.get(handle).unwrap();
+                if handle.0.id() == *id {
+                    let scene = scenes.get(&handle.0).unwrap();
 
                     commands
                         .entity(entity)
@@ -226,7 +227,7 @@ pub fn handle_scene_events(
                         .remove::<VoxelSceneModels>();
 
                     loaded_assets.assets.insert(
-                        handle.id(),
+                        handle.0.id(),
                         MaterialMeshes {
                             material: materials.add(scene.material.clone()),
                             meshes: scene
@@ -237,7 +238,7 @@ pub fn handle_scene_events(
                         },
                     );
 
-                    let material_meshes = &loaded_assets.assets.get(&handle.id()).unwrap();
+                    let material_meshes = &loaded_assets.assets.get(&handle.0.id()).unwrap();
                     scene.spawn(
                         commands.entity(entity),
                         material_meshes.material.clone(),

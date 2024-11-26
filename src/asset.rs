@@ -7,7 +7,6 @@ use bevy::{
 use block_mesh::{MergeVoxel, Voxel, VoxelVisibility};
 use dot_vox::{DotVoxData, SceneNode};
 use ndshape::{RuntimeShape, Shape};
-use smol::io::AsyncReadExt;
 
 pub struct VoxFileAssetPlugin;
 
@@ -199,12 +198,14 @@ impl AssetLoader for VoxAssetLoader {
 
     type Error = Box<dyn std::error::Error + Send + Sync>;
 
-    fn load<'a>(
-        &'a self,
-        reader: &'a mut Reader,
-        _settings: &'a Self::Settings,
-        _load_context: &'a mut LoadContext,
+    fn load(
+        &self,
+        reader: &mut dyn Reader,
+        settings: &Self::Settings,
+        load_context: &mut LoadContext,
     ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
+        let _ = load_context;
+        let _ = settings;
         async move {
             let mut buf = Vec::new();
             reader.read_to_end(&mut buf).await?;
