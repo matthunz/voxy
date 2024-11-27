@@ -164,7 +164,7 @@ pub struct LoadedAssets {
 #[derive(Component)]
 pub struct Loaded;
 
-#[derive(Component)]
+#[derive(Clone, Component)]
 pub struct VoxelSceneHandle(pub Handle<VoxelScene>);
 
 pub fn load_scenes(
