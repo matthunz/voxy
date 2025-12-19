@@ -2,11 +2,11 @@
 name = "voxy"
 description = "Voxel engine for Bevy"
 version = "0.2.0-alpha.1"
-edition = "2021"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-bevy = { version = "0.15.0-rc.3", features = ["file_watcher"] }
+bevy = { version = "0.17.3", features = ["file_watcher"] }
 block-mesh = "0.2.0"
 dot_vox = "5.1.1"
 futures = "0.3.31"

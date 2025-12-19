@@ -1,12 +1,10 @@
 use bevy::{
+    asset::RenderAssetUsages,
+    mesh::{Indices, MeshVertexAttribute, VertexAttributeValues},
     prelude::*,
-    render::{
-        mesh::{Indices, MeshVertexAttribute, VertexAttributeValues},
-        render_asset::RenderAssetUsages,
-        render_resource::{PrimitiveTopology, VertexFormat},
-    },
+    render::render_resource::{PrimitiveTopology, VertexFormat},
 };
-use block_mesh::{greedy_quads, GreedyQuadsBuffer, MergeVoxel, RIGHT_HANDED_Y_UP_CONFIG};
+use block_mesh::{GreedyQuadsBuffer, MergeVoxel, RIGHT_HANDED_Y_UP_CONFIG, greedy_quads};
 use ndshape::Shape;
 use std::marker::PhantomData;
 

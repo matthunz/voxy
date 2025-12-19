@@ -1,21 +1,23 @@
+use std::marker::PhantomData;
+
 use crate::ATTRIBUTE_COLOR_INDEX;
 use bevy::{
+    mesh::MeshVertexBufferLayoutRef,
     pbr::{MaterialPipeline, MaterialPipelineKey},
     prelude::*,
-    render::{
-        mesh::MeshVertexBufferLayoutRef,
-        render_resource::{
-            AsBindGroup, RenderPipelineDescriptor, ShaderRef, SpecializedMeshPipelineError,
-        },
+    render::render_resource::{
+        AsBindGroup, RenderPipelineDescriptor, SpecializedMeshPipelineError,
     },
+    shader::ShaderRef,
 };
 use uuid::Uuid;
 
-pub const VOXEL_MATERIAL_SHADER_HANDLE: Handle<Shader> = Handle::Weak(AssetId::Uuid {
-    uuid: Uuid::from_bytes([
+pub const VOXEL_MATERIAL_SHADER_HANDLE: Handle<Shader> = Handle::Uuid(
+    Uuid::from_bytes([
         152, 99, 215, 179, 144, 131, 70, 105, 133, 171, 80, 205, 43, 117, 234, 20,
     ]),
-});
+    PhantomData,
+);
 
 pub struct VoxelMaterialPlugin;
 
@@ -27,7 +29,8 @@ impl Plugin for VoxelMaterialPlugin {
             .insert(
                 &VOXEL_MATERIAL_SHADER_HANDLE,
                 Shader::from_wgsl(include_str!("voxel_material.wgsl"), "voxel_material.wgsl"),
-            );
+            )
+            .unwrap();
     }
 }
 
@@ -57,7 +60,7 @@ impl Material for VoxelMaterial {
     }
 
     fn specialize(
-        _pipeline: &MaterialPipeline<Self>,
+        _pipeline: &MaterialPipeline,
         descriptor: &mut RenderPipelineDescriptor,
         layout: &MeshVertexBufferLayoutRef,
         _key: MaterialPipelineKey<Self>,

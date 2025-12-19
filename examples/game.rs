@@ -1,4 +1,4 @@
-use bevy::{core_pipeline::bloom::Bloom, prelude::*};
+use bevy::{post_process::bloom::Bloom, prelude::*};
 use voxy::prelude::*;
 
 fn main() {
@@ -22,10 +22,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     });
 
     commands.spawn((
-        Camera {
-            hdr: true,
-            ..default()
-        },
+        Camera::default(),
         Camera3d::default(),
         Transform::from_translation(Vec3::new(-60., 60., -60.)).looking_at(Vec3::ZERO, Vec3::Y),
         Bloom::NATURAL,

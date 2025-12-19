@@ -1,8 +1,7 @@
 use crate::{Chunk, VoxelMaterial};
 use bevy::{
-    asset::{io::Reader, AssetLoader, LoadContext},
+    asset::{AssetLoader, LoadContext, io::Reader},
     prelude::*,
-    utils::ConditionalSendFuture,
 };
 use block_mesh::{MergeVoxel, Voxel, VoxelVisibility};
 use dot_vox::{DotVoxData, SceneNode};
@@ -198,20 +197,19 @@ impl AssetLoader for VoxAssetLoader {
 
     type Error = Box<dyn std::error::Error + Send + Sync>;
 
-    fn load(
+    async fn load(
         &self,
         reader: &mut dyn Reader,
         settings: &Self::Settings,
-        load_context: &mut LoadContext,
-    ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
+        load_context: &mut LoadContext<'_>,
+    ) -> Result<Self::Asset, Self::Error> {
         let _ = load_context;
         let _ = settings;
-        async move {
-            let mut buf = Vec::new();
-            reader.read_to_end(&mut buf).await?;
 
-            let file = dot_vox::load_bytes(&buf).unwrap();
-            Ok(VoxFileAsset { file })
-        }
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf).await?;
+
+        let file = dot_vox::load_bytes(&buf).unwrap();
+        Ok(VoxFileAsset { file })
     }
 }

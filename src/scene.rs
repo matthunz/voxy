@@ -1,12 +1,12 @@
 use crate::{VoxAssetLoader, VoxelMaterial};
 use bevy::{
-    asset::{io::Reader, AssetLoader, LoadContext},
+    asset::{AssetLoader, LoadContext, io::Reader},
     ecs::system::EntityCommands,
     prelude::*,
-    utils::{hashbrown::HashMap, ConditionalSendFuture},
 };
 use futures::future;
 use ndshape::Shape;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 pub struct ScenePlugin;
@@ -97,57 +97,55 @@ impl AssetLoader for SceneLoader {
 
     type Error = Box<dyn std::error::Error + Send + Sync>;
 
-    fn load(
+    async fn load(
         &self,
         reader: &mut dyn Reader,
         settings: &Self::Settings,
-        load_context: &mut LoadContext,
-    ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
-        async move {
-            let asset = VoxAssetLoader.load(reader, settings, load_context).await?;
+        load_context: &mut LoadContext<'_>,
+    ) -> Result<Self::Asset, Self::Error> {
+        let asset = VoxAssetLoader.load(reader, settings, load_context).await?;
 
-            let material = asset.material();
+        let material = asset.material();
 
-            let emissions = Arc::new(material.emissions);
-            let chunks: Vec<_> = asset.chunks().collect();
+        let emissions = Arc::new(material.emissions);
+        let chunks: Vec<_> = asset.chunks().collect();
 
-            let meshes = future::join_all(chunks.into_iter().map(|asset_chunk| {
-                let emissions = emissions.clone();
+        let meshes = future::join_all(chunks.into_iter().map(|asset_chunk| {
+            let emissions = emissions.clone();
 
-                smol::unblock(move || {
-                    let mesh = asset_chunk.chunk.build();
+            smol::unblock(move || {
+                let mesh = asset_chunk.chunk.build();
 
-                    // TODO check positions
-                    let mut lights = Vec::new();
-                    for (idx, voxel) in asset_chunk.chunk.voxels.iter().enumerate() {
-                        let emissive = emissions[voxel.idx as usize];
+                // TODO check positions
+                let mut lights = Vec::new();
+                for (idx, voxel) in asset_chunk.chunk.voxels.iter().enumerate() {
+                    let emissive = emissions[voxel.idx as usize];
 
-                        let [x, y, z] = asset_chunk
-                            .chunk
-                            .shape
-                            .delinearize(idx as _)
-                            .map(|n| n as f32);
+                    let [x, y, z] = asset_chunk
+                        .chunk
+                        .shape
+                        .delinearize(idx as _)
+                        .map(|n| n as f32);
 
-                        if emissive.x > 0. {
-                            lights.push(VoxelLight {
-                                origin: Vec3::new(x, y, z),
-                                intensity: emissive.x,
-                            });
-                        }
+                    if emissive.x > 0. {
+                        lights.push(VoxelLight {
+                            origin: Vec3::new(x, y, z),
+                            intensity: emissive.x,
+                        });
                     }
+                }
 
-                    LitMesh {
-                        mesh,
-                        lights,
-                        name: asset_chunk.name,
-                        transform: asset_chunk.transform,
-                    }
-                })
-            }))
-            .await;
+                LitMesh {
+                    mesh,
+                    lights,
+                    name: asset_chunk.name,
+                    transform: asset_chunk.transform,
+                }
+            })
+        }))
+        .await;
 
-            Ok(VoxelScene { meshes, material })
-        }
+        Ok(VoxelScene { meshes, material })
     }
 }
 
@@ -208,7 +206,7 @@ pub fn load_scenes(
 
 pub fn handle_scene_events(
     mut commands: Commands,
-    mut events: EventReader<AssetEvent<VoxelScene>>,
+    mut events: MessageReader<AssetEvent<VoxelScene>>,
     scenes: Res<Assets<VoxelScene>>,
     query: Query<(Entity, &VoxelSceneHandle), With<Loaded>>,
     mut loaded_assets: ResMut<LoadedAssets>,
@@ -223,7 +221,7 @@ pub fn handle_scene_events(
 
                     commands
                         .entity(entity)
-                        .despawn_descendants()
+                        .despawn_children()
                         .remove::<VoxelSceneModels>();
 
                     loaded_assets.assets.insert(

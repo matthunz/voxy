@@ -18,8 +18,8 @@
 }
 #endif
 
-@group(2) @binding(0) var<uniform> colors: array<vec3<f32>, 256>;
-@group(2) @binding(1) var<uniform> emissives: array<vec3<f32>, 256>;
+@group(#{MATERIAL_BIND_GROUP}) @binding(0) var<uniform> colors: array<vec3<f32>, 256>;
+@group(#{MATERIAL_BIND_GROUP}) @binding(1) var<uniform> emissives: array<vec3<f32>, 256>;
 
 struct Vertex {
     @builtin(instance_index) instance_index: u32,
